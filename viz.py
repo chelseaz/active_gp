@@ -10,16 +10,17 @@ from operator import itemgetter
 def plot_posterior(gp, X_train, y_train, covariate_space, truth_fn, filename):
     plt.figure(figsize=(10, 6))
     X_ = np.linspace(covariate_space.xmin, covariate_space.xmax, 100)
+    X__matrix = X_[:, np.newaxis]
 
     # Plot GP posterior
-    y_mean, y_cov = gp.predict(X_[:, np.newaxis], return_cov=True)
+    y_mean, y_cov = gp.predict(X__matrix, return_cov=True)
     plt.plot(X_, y_mean, 'k', lw=2, zorder=9)
     plt.fill_between(X_, y_mean - np.sqrt(np.diag(y_cov)),
                      y_mean + np.sqrt(np.diag(y_cov)),
                      alpha=0.5, color='k')
 
     # Plot ground truth
-    y_truth = [ truth_fn(x) for x in X_[:, np.newaxis] ]
+    y_truth = [ truth_fn(x) for x in X__matrix ]
     plt.plot(X_, y_truth, 'r', lw=2, zorder=9)
 
     # Draw training points, highlighting the last point
