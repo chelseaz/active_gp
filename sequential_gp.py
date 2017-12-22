@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import numpy as np
+import os
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
@@ -8,12 +9,13 @@ from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 from viz import *
 
 rng = np.random.RandomState(0)
+fig_prefix = "figs/"
 
 
 def sinusoid_with_noise(x):
     # Used in scikit-learn GP example
     # http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
-    return 0.5 * np.sin(3 * x[0]) + rng.normal(0, np.sqrt(0.25))
+    return 0.5 * np.sin(3 * x[0]) + rng.normal(0, np.sqrt(0.01))
 
 def sinusoid_noiseless(x):
     return 0.5 * np.sin(3 * x[0])
@@ -25,8 +27,8 @@ def uniform_sampling():
 # select_x_fn returns a numpy array
 # observe_y_fn takes in a numpy array and returns a scalar output
 def run_sequential(select_x_fn, observe_y_fn, truth_fn):
-    N_init = 11
-    N_final = 20
+    N_init = 111
+    N_final = 120
 
     # generate first N observations randomly
     X = rng.uniform(0, 5, N_init-1)[:, np.newaxis]
@@ -55,12 +57,15 @@ def run_sequential(select_x_fn, observe_y_fn, truth_fn):
 
         print "With %d points" % i
         print "final kernel: ", gp.kernel_
-        plot_posterior(gp, X, y, truth_fn, "posterior_%d.png" % i)
+        plot_posterior(gp, X, y, truth_fn, fig_prefix + "posterior_%d.png" % i)
         
-    plot_log_marginal_likelihood(gp, theta_iterates, "lml_%d_%d.png" % (N_init, N_final))
+    plot_log_marginal_likelihood(gp, theta_iterates, fig_prefix + "lml_%d_%d.png" % (N_init, N_final))
 
 
 if __name__ == "__main__":
+    if not os.path.exists(fig_prefix):
+        os.makedirs(fig_prefix)
+
     run_sequential(
         select_x_fn=uniform_sampling,
         observe_y_fn=sinusoid_with_noise,
