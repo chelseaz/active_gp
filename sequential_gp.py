@@ -13,6 +13,12 @@ from viz import *
 fig_prefix = "figs/"
 
 
+class CovariateSpace():
+    def __init__(self, xmin, xmax):
+        self.xmin = xmin
+        self.xmax = xmax
+
+
 class GroundTruth():
     # mean_fn takes in a numpy array and returns a scalar output
     # noise_fn takes in a random state and returns a scalar output
@@ -23,33 +29,38 @@ class GroundTruth():
         self.observe_y_fn = lambda x, rng: mean_fn(x) + noise_fn(rng)
 
 
+covariate_spaces = {
+    'centered': CovariateSpace(xmin = -1.0, xmax = 1.0)
+}
+
 # Adapted from scikit-learn GP example
 # http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
 ground_truths = {
     'high_freq_sinusoid': GroundTruth(
-        mean_fn = lambda x: 0.5 * np.sin(10 * x[0]),
+        mean_fn = lambda x: np.sin(3 * 2 * np.pi * x[0]),
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.01)),
-        name = 'sin_freq_10_noise_0.01'),
+        name = 'sin_freq_3_noise_0.01'),
     'low_freq_sinusoid': GroundTruth(
-        mean_fn = lambda x: 0.5 * np.sin(3 * x[0]),
+        mean_fn = lambda x: np.sin(1 * 2 * np.pi * x[0]),
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.01)),
-        name = 'sin_freq_3_noise_0.01')
+        name = 'sin_freq_1_noise_0.01')
 }
 
-# def sinusoid_with_noise(x):
-#     return 0.5 * np.sin(10 * x[0]) + rng.normal(0, np.sqrt(0.01))
+def uniform_sampling(covariate_space, rng):
+    return rng.uniform(covariate_space.xmin, covariate_space.xmax, 1)
 
-# def sinusoid_noiseless(x):
-#     return 0.5 * np.sin(10 * x[0])
 
-def uniform_sampling(rng):
-    return rng.uniform(0, 5, 1)
+def compute_mse(gp, ground_truth):
+    # sample x uniformly for now
+    # eventually incorporate density of x
+    pass
 
 
 # select_x_fn returns a numpy array
-def run_sequential(select_x_fn, ground_truth, rng, N_init, N_final):
+def run_sequential(select_x_fn, covariate_space, ground_truth, 
+                   rng, N_init, N_final):
     # generate first N observations randomly
-    X = rng.uniform(0, 5, N_init-1)[:, np.newaxis]
+    X = rng.uniform(covariate_space.xmin, covariate_space.xmax, N_init-1)[:, np.newaxis]
     y = np.array([ground_truth.observe_y_fn(x, rng) for x in X])
 
     kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
@@ -59,7 +70,7 @@ def run_sequential(select_x_fn, ground_truth, rng, N_init, N_final):
     theta_iterates = np.empty((0,kernel.theta.size))
 
     for i in range(N_init, N_final+1):
-        x_star = select_x_fn(rng)
+        x_star = select_x_fn(covariate_space, rng)
         y_star = ground_truth.observe_y_fn(x_star, rng)
 
         # update data
@@ -76,7 +87,7 @@ def run_sequential(select_x_fn, ground_truth, rng, N_init, N_final):
         print "With %d points" % i
         print "final kernel: ", gp.kernel_
         posterior_filename = fig_prefix + "%s_posterior_%d.png" % (ground_truth.name, i)
-        plot_posterior(gp, X, y, ground_truth.mean_fn, posterior_filename)
+        plot_posterior(gp, X, y, covariate_space, ground_truth.mean_fn, posterior_filename)
         
     lml_filename = fig_prefix + "%s_lml_%d_%d.png" % (ground_truth.name, N_init, N_final)
     plot_log_marginal_likelihood(gp, theta_iterates, lml_filename)
@@ -87,11 +98,18 @@ if __name__ == "__main__":
     print sys.argv
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--covariate_space', type=str, required=True)
     parser.add_argument('--ground_truth', type=str, required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
     parser.add_argument('--random_seed', type=int, default=0)
     args = parser.parse_args()
+
+    try:
+        covariate_space = covariate_spaces[args.covariate_space]
+    except KeyError:
+        print "Requested covariate space '%s' not found" % args.covariate_space
+        sys.exit(2)
 
     try:
         ground_truth = ground_truths[args.ground_truth]
@@ -104,6 +122,7 @@ if __name__ == "__main__":
 
     run_sequential(
         select_x_fn = uniform_sampling,
+        covariate_space = covariate_space,
         ground_truth = ground_truth,
         rng = np.random.RandomState(0),
         N_init = args.nmin,

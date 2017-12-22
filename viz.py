@@ -7,9 +7,9 @@ from matplotlib.colors import LogNorm
 from operator import itemgetter
 
 # Adapted from http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
-def plot_posterior(gp, X_train, y_train, truth_fn, filename):
+def plot_posterior(gp, X_train, y_train, covariate_space, truth_fn, filename):
     plt.figure(figsize=(10, 6))
-    X_ = np.linspace(0, 5, 100)
+    X_ = np.linspace(covariate_space.xmin, covariate_space.xmax, 100)
 
     # Plot GP posterior
     y_mean, y_cov = gp.predict(X_[:, np.newaxis], return_cov=True)
