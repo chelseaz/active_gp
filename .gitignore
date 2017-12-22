@@ -1,0 +1,10 @@
+*.DS_Store
+*.pyc
+*.png
+*.pdf
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+*.Rhistory
