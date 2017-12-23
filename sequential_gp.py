@@ -115,7 +115,7 @@ def run_sequential(select_x_fn, covariate_space, ground_truth,
             plot_posterior(gp, X, y, covariate_space, ground_truth.mean_fn, posterior_filename)
         
     mse_filename = fig_prefix + "%s_mse_%d_%d.png" % (ground_truth.name, N_init, N_final)
-    plot_mse(all_N, all_mse, mse_filename)
+    plot_mse(all_N, all_mse, ground_truth.variance, mse_filename)
 
     lml_filename = fig_prefix + "%s_lml_%d_%d.png" % (ground_truth.name, N_init, N_final)
     plot_log_marginal_likelihood(gp, theta_iterates, lml_filename)

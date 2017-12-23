@@ -71,10 +71,13 @@ def plot_log_marginal_likelihood(gp, theta_iterates, filename):
     plt.savefig(filename)
     plt.close()
 
-def plot_mse(all_n, all_mse, filename):
+def plot_mse(all_n, all_mse, true_variance, filename):
     plt.figure()
 
     plt.plot(all_n, all_mse, 'k-', linewidth=1)
+    plt.axhline(true_variance, color='r', linewidth=1)
+    
+    plt.yscale("log")
     
     plt.title("MSE of posterior mean across iterations")
     plt.savefig(filename)
