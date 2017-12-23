@@ -76,7 +76,7 @@ def compute_mse(gp, covariate_space, ground_truth, rng):
 
 # select_x_fn returns a numpy array
 def run_sequential(select_x_fn, covariate_space, ground_truth, 
-                   rng, eval_rng, N_init, N_final):
+                   rng, eval_rng, N_init, N_final, skip_plots):
     # generate first N observations randomly
     X = covariate_space.sample(N_init-1, rng)[:, np.newaxis]
     y = np.array([ground_truth.observe_y_fn(x, rng) for x in X])
@@ -87,7 +87,9 @@ def run_sequential(select_x_fn, covariate_space, ground_truth,
 
     theta_iterates = np.empty((0,kernel.theta.size))
 
-    for i in range(N_init, N_final+1):
+    all_N = range(N_init, N_final+1)
+    all_mse = []
+    for i in all_N:
         x_star = select_x_fn(covariate_space, rng)
         y_star = ground_truth.observe_y_fn(x_star, rng)
 
@@ -101,27 +103,34 @@ def run_sequential(select_x_fn, covariate_space, ground_truth,
         gp.fit(X, y)
 
         theta_iterates = np.vstack([theta_iterates, np.exp(gp.kernel_.theta)])
+        mse = compute_mse(gp, covariate_space, ground_truth, eval_rng)
+        all_mse.append(mse)
 
         print "With %d points" % i
         print "final kernel: ", gp.kernel_
-        print "MSE: ", compute_mse(gp, covariate_space, ground_truth, eval_rng)
-        posterior_filename = fig_prefix + "%s_posterior_%d.png" % (ground_truth.name, i)
-        plot_posterior(gp, X, y, covariate_space, ground_truth.mean_fn, posterior_filename)
+        print "MSE: ", mse
+
+        if not skip_plots:
+            posterior_filename = fig_prefix + "%s_posterior_%d.png" % (ground_truth.name, i)
+            plot_posterior(gp, X, y, covariate_space, ground_truth.mean_fn, posterior_filename)
         
+    mse_filename = fig_prefix + "%s_mse_%d_%d.png" % (ground_truth.name, N_init, N_final)
+    plot_mse(all_N, all_mse, mse_filename)
+
     lml_filename = fig_prefix + "%s_lml_%d_%d.png" % (ground_truth.name, N_init, N_final)
     plot_log_marginal_likelihood(gp, theta_iterates, lml_filename)
-
 
 if __name__ == "__main__":
     print "Called with arguments:"
     print sys.argv
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--covariate_space', type=str, required=True)
-    parser.add_argument('--ground_truth', type=str, required=True)
+    parser.add_argument('--covariate-space', type=str, required=True)
+    parser.add_argument('--ground-truth', type=str, required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
-    parser.add_argument('--random_seed', type=int, default=0)
+    parser.add_argument('--random-seed', type=int, default=0)
+    parser.add_argument('--no-plot', action='store_true')
     args = parser.parse_args()
 
     try:
@@ -146,5 +155,6 @@ if __name__ == "__main__":
         rng = np.random.RandomState(args.random_seed),
         eval_rng = np.random.RandomState(args.random_seed),
         N_init = args.nmin,
-        N_final = args.nmax
+        N_final = args.nmax,
+        skip_plots = args.no_plot
     )

@@ -70,3 +70,12 @@ def plot_log_marginal_likelihood(gp, theta_iterates, filename):
     plt.title("Negative log marginal likelihood")
     plt.savefig(filename)
     plt.close()
+
+def plot_mse(all_n, all_mse, filename):
+    plt.figure()
+
+    plt.plot(all_n, all_mse, 'k-', linewidth=1)
+    
+    plt.title("MSE of posterior mean across iterations")
+    plt.savefig(filename)
+    plt.close()
