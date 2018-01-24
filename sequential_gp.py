@@ -87,9 +87,10 @@ def run_sequential(select_x_fn, covariate_space, ground_truth,
 
     theta_iterates = np.empty((0,kernel.theta.size))
 
-    all_N = range(N_init, N_final+1)
-    all_mse = []
-    for i in all_N:
+    mse_indices, mse_values = [], []
+    compute_mse_pred = lambda i: i % 10 == 0
+
+    for i in range(N_init, N_final+1):
         x_star = select_x_fn(covariate_space, rng)
         y_star = ground_truth.observe_y_fn(x_star, rng)
 
@@ -102,20 +103,23 @@ def run_sequential(select_x_fn, covariate_space, ground_truth,
         # update hyperparameters
         gp.fit(X, y)
 
-        theta_iterates = np.vstack([theta_iterates, np.exp(gp.kernel_.theta)])
-        mse = compute_mse(gp, covariate_space, ground_truth, eval_rng)
-        all_mse.append(mse)
-
         print "With %d points" % i
         print "final kernel: ", gp.kernel_
-        print "MSE: ", mse
+
+        theta_iterates = np.vstack([theta_iterates, np.exp(gp.kernel_.theta)])
+        
+        if compute_mse_pred(i):
+            mse = compute_mse(gp, covariate_space, ground_truth, eval_rng)
+            mse_indices.append(i)
+            mse_values.append(mse)
+            print "MSE: ", mse
 
         if not skip_plots:
             posterior_filename = fig_prefix + "%s_posterior_%d.png" % (ground_truth.name, i)
             plot_posterior(gp, X, y, covariate_space, ground_truth.mean_fn, posterior_filename)
         
     mse_filename = fig_prefix + "%s_mse_%d_%d.png" % (ground_truth.name, N_init, N_final)
-    plot_mse(all_N, all_mse, ground_truth.variance, mse_filename)
+    plot_mse(mse_indices, mse_values, ground_truth.variance, mse_filename)
 
     lml_filename = fig_prefix + "%s_lml_%d_%d.png" % (ground_truth.name, N_init, N_final)
     plot_log_marginal_likelihood(gp, theta_iterates, lml_filename)
