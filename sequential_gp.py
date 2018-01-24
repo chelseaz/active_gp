@@ -75,15 +75,22 @@ def compute_mse(gp, covariate_space, ground_truth, rng):
 
 
 # select_x_fn returns a numpy array
-def run_sequential(select_x_fn, covariate_space, ground_truth, 
+def run_sequential(select_x_fn, update_theta,
+                   covariate_space, ground_truth, 
                    rng, eval_rng, N_init, N_final, skip_plots):
+    
+    kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
+        + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
+    if update_theta:
+        gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0)
+    else:
+        gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0, optimizer=None)
+
     # generate first N observations randomly
     X = covariate_space.sample(N_init-1, rng)[:, np.newaxis]
     y = np.array([ground_truth.observe_y_fn(x, rng) for x in X])
 
-    kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
-        + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
-    gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0).fit(X, y)
+    gp.fit(X, y)
 
     theta_iterates = np.empty((0,kernel.theta.size))
 
@@ -124,11 +131,13 @@ def run_sequential(select_x_fn, covariate_space, ground_truth,
     lml_filename = fig_prefix + "%s_lml_%d_%d.png" % (ground_truth.name, N_init, N_final)
     plot_log_marginal_likelihood(gp, theta_iterates, lml_filename)
 
+
 if __name__ == "__main__":
     print "Called with arguments:"
     print sys.argv
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--fix-theta', action='store_true')
     parser.add_argument('--covariate-space', type=str, required=True)
     parser.add_argument('--ground-truth', type=str, required=True)
     parser.add_argument('--nmin', type=int, default=11)
@@ -154,6 +163,7 @@ if __name__ == "__main__":
 
     run_sequential(
         select_x_fn = uniform_sampling,
+        update_theta = not args.fix_theta,
         covariate_space = covariate_space,
         ground_truth = ground_truth,
         rng = np.random.RandomState(args.random_seed),
