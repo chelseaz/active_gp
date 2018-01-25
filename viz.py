@@ -18,8 +18,9 @@ class IncrementalPlot():
 
 
 class MSEPlot(IncrementalPlot):
-    def __init__(self, true_variance):
-        self.fig, self.ax = plt.subplots(figsize=(6, 4))
+    def __init__(self, true_variance, title):
+        self.title = title
+        self.fig, self.ax = plt.subplots(figsize=(10, 8))
         self.ax.axhline(true_variance, color='r', linewidth=1)
         
     def append(self, n_values, mse_values, label):
@@ -29,9 +30,11 @@ class MSEPlot(IncrementalPlot):
     def complete(self):
         self.ax.set_yscale("log")
         self.ax.set_xlabel("Number of training points")
-        self.ax.set_ylabel("MSE")
-        self.ax.set_title("MSE of posterior mean across iterations")
+        self.ax.set_ylabel("MSE of posterior mean")
+        self.ax.set_title(self.title)
         self.ax.legend()
+        # self.ax.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+        # self.fig.subplots_adjust(right=0.7)
 
 
 class PosteriorPlot(IncrementalPlot):

@@ -84,6 +84,9 @@ def learn_gp(select_x_fn, kernel, update_theta,
              rng, eval_rng, 
              N_init, N_final, N_eval_pts):
     
+    print "\nLearning GP"
+    print "Initial kernel: ", kernel
+
     if update_theta:
         gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0)
     else:
@@ -115,9 +118,6 @@ def learn_gp(select_x_fn, kernel, update_theta,
         # update hyperparameters
         gp.fit(X, y)
 
-        print "With %d points" % i
-        print "final kernel: ", gp.kernel_
-
         theta_iterates = np.vstack([theta_iterates, np.exp(gp.kernel_.theta)])
         # should only track theta_iterates at eval_indices?
 
@@ -129,13 +129,15 @@ def learn_gp(select_x_fn, kernel, update_theta,
             plot_num = np.where(eval_indices == i)[0][0]
             posterior_plot.append(gp, X, y, plot_num, n_points=i)
 
+    print "Final kernel: ", gp.kernel_
+
     gen_filename = lambda fig_type: fig_prefix + "%s_%s_%d_%d.png" % \
         (ground_truth.name, fig_type, N_init, N_final)
 
     if update_theta:
-        posterior_plot.save(gen_filename("posterior"))
-        plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse"))
-        plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml"))
+        posterior_plot.save(gen_filename("posterior_seq"))
+        plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse_seq"))
+        plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml_seq"))
     else:
         kernel_str = '_'.join(map(lambda f: "%.2e" % f, np.exp(kernel.theta)))
         posterior_plot.save(gen_filename("posterior_" + kernel_str))
@@ -178,10 +180,6 @@ if __name__ == "__main__":
     if args.fix_theta:
         # learn GP with different fixed values of theta
 
-        orders_of_magnitude = np.logspace(-2, 2, 5)
-
-        mse_plot = MSEPlot(ground_truth.variance)
-
         learn_gp_fix_kernel = lambda kernel: learn_gp(
             select_x_fn = uniform_sampling,
             kernel = kernel,
@@ -195,16 +193,35 @@ if __name__ == "__main__":
             N_eval_pts = args.n_eval_pts
         )
 
-        for variance in ground_truth.variance * orders_of_magnitude:
+        # try different length-scale values
+        mse_diffls_plot = MSEPlot(ground_truth.variance,
+            title="Learning GP with fixed hyperparameters, variance=%.3f" % ground_truth.variance)
+
+        for length_scale in ground_truth.approx_length_scale * np.logspace(-1, 1, 9):
+            kernel = RBF(length_scale=length_scale, length_scale_bounds=(1e-2, 1e3)) \
+                + WhiteKernel(noise_level=ground_truth.variance)
+            eval_indices, mse_values = learn_gp_fix_kernel(kernel)
+            mse_diffls_plot.append(eval_indices, mse_values, 
+                label="length-scale=%.2e" % length_scale)
+
+        mse_filename = fig_prefix + "%s_mse_diffls_%d_%d.png" % \
+            (ground_truth.name, args.nmin, args.nmax)
+        mse_diffls_plot.save(mse_filename)
+
+        # try different variance values
+        mse_diffvar_plot = MSEPlot(ground_truth.variance, 
+            title="Learning GP with fixed hyperparameters, length-scale=%.3f" % ground_truth.approx_length_scale)
+
+        for variance in ground_truth.variance * np.logspace(-2, 2, 5):
             kernel = RBF(length_scale=ground_truth.approx_length_scale) \
                 + WhiteKernel(noise_level=variance, noise_level_bounds=(1e-10, 1e+1))
             eval_indices, mse_values = learn_gp_fix_kernel(kernel)
-            mse_plot.append(eval_indices, mse_values, 
+            mse_diffvar_plot.append(eval_indices, mse_values, 
                 label="variance=%.2e" % variance)
 
         mse_filename = fig_prefix + "%s_mse_diffvar_%d_%d.png" % \
             (ground_truth.name, args.nmin, args.nmax)
-        mse_plot.save(mse_filename)
+        mse_diffvar_plot.save(mse_filename)
 
     else:
         # run sequential version
