@@ -34,6 +34,10 @@ class GroundTruth():
         self.name = name
         self.observe_y_fn = lambda x, rng: mean_fn(x) + noise_fn(rng)
 
+        # TODO: calculate this programmatically
+        # hardcoded for the low_freq_sinusoid based on sequential version with 1000 pts
+        self.approx_length_scale = 0.334
+
 
 covariate_spaces = {
     'centered': CovariateSpace(xmin = -1.0, xmax = 1.0)
@@ -75,13 +79,11 @@ def compute_mse(gp, covariate_space, ground_truth, rng):
 
 
 # select_x_fn returns a numpy array
-def run_sequential(select_x_fn, update_theta,
-                   covariate_space, ground_truth, 
-                   rng, eval_rng, 
-                   N_init, N_final, N_eval_pts):
+def learn_gp(select_x_fn, kernel, update_theta,
+             covariate_space, ground_truth, 
+             rng, eval_rng, 
+             N_init, N_final, N_eval_pts):
     
-    kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
-        + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
     if update_theta:
         gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0)
     else:
@@ -130,11 +132,15 @@ def run_sequential(select_x_fn, update_theta,
     gen_filename = lambda fig_type: fig_prefix + "%s_%s_%d_%d.png" % \
         (ground_truth.name, fig_type, N_init, N_final)
 
-    posterior_plot.save(gen_filename("posterior"))
+    if update_theta:
+        posterior_plot.save(gen_filename("posterior"))
+        plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse"))
+        plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml"))
+    else:
+        kernel_str = '_'.join(map(lambda f: "%.2e" % f, np.exp(kernel.theta)))
+        posterior_plot.save(gen_filename("posterior_" + kernel_str))
 
-    plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse"))
-
-    plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml"))
+    return (eval_indices, mse_values)
 
 
 if __name__ == "__main__":
@@ -166,14 +172,51 @@ if __name__ == "__main__":
     if not os.path.exists(fig_prefix):
         os.makedirs(fig_prefix)
 
-    run_sequential(
-        select_x_fn = uniform_sampling,
-        update_theta = not args.fix_theta,
-        covariate_space = covariate_space,
-        ground_truth = ground_truth,
-        rng = np.random.RandomState(args.random_seed),
-        eval_rng = np.random.RandomState(args.random_seed),
-        N_init = args.nmin,
-        N_final = args.nmax,
-        N_eval_pts = args.n_eval_pts
-    )
+    default_kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
+        + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
+
+    if args.fix_theta:
+        # learn GP with different fixed values of theta
+
+        orders_of_magnitude = np.logspace(-2, 2, 5)
+
+        mse_plot = MSEPlot(ground_truth.variance)
+
+        learn_gp_fix_kernel = lambda kernel: learn_gp(
+            select_x_fn = uniform_sampling,
+            kernel = kernel,
+            update_theta = False,
+            covariate_space = covariate_space,
+            ground_truth = ground_truth,
+            rng = np.random.RandomState(args.random_seed),
+            eval_rng = np.random.RandomState(args.random_seed),
+            N_init = args.nmin,
+            N_final = args.nmax,
+            N_eval_pts = args.n_eval_pts
+        )
+
+        for variance in ground_truth.variance * orders_of_magnitude:
+            kernel = RBF(length_scale=ground_truth.approx_length_scale) \
+                + WhiteKernel(noise_level=variance, noise_level_bounds=(1e-10, 1e+1))
+            eval_indices, mse_values = learn_gp_fix_kernel(kernel)
+            mse_plot.append(eval_indices, mse_values, 
+                label="variance=%.2e" % variance)
+
+        mse_filename = fig_prefix + "%s_mse_diffvar_%d_%d.png" % \
+            (ground_truth.name, args.nmin, args.nmax)
+        mse_plot.save(mse_filename)
+
+    else:
+        # run sequential version
+        learn_gp(
+            select_x_fn = uniform_sampling,
+            kernel = default_kernel,
+            update_theta = True,
+            covariate_space = covariate_space,
+            ground_truth = ground_truth,
+            rng = np.random.RandomState(args.random_seed),
+            eval_rng = np.random.RandomState(args.random_seed),
+            N_init = args.nmin,
+            N_final = args.nmax,
+            N_eval_pts = args.n_eval_pts
+        )

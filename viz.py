@@ -7,7 +7,34 @@ from matplotlib.colors import LogNorm
 from operator import itemgetter
 
 
-class PosteriorPlot():
+class IncrementalPlot():
+    def complete(self):
+        pass
+
+    def save(self, filename):
+        self.complete()
+        self.fig.savefig(filename)
+        plt.close(self.fig) 
+
+
+class MSEPlot(IncrementalPlot):
+    def __init__(self, true_variance):
+        self.fig, self.ax = plt.subplots(figsize=(6, 4))
+        self.ax.axhline(true_variance, color='r', linewidth=1)
+        
+    def append(self, n_values, mse_values, label):
+        self.ax.plot(n_values, mse_values, label=label, linewidth=1)
+        # TODO: different colors
+
+    def complete(self):
+        self.ax.set_yscale("log")
+        self.ax.set_xlabel("Number of training points")
+        self.ax.set_ylabel("MSE")
+        self.ax.set_title("MSE of posterior mean across iterations")
+        self.ax.legend()
+
+
+class PosteriorPlot(IncrementalPlot):
     def __init__(self, covariate_space, truth_fn, n_plots):
         self.X_ = np.linspace(covariate_space.xmin, covariate_space.xmax, 100)
         self.X__matrix = self.X_[:, np.newaxis]
@@ -41,10 +68,6 @@ class PosteriorPlot():
         ax.set_title("With %d training points:\nLog-Marginal-Likelihood: %s"
                      % (n_points, gp.log_marginal_likelihood(gp.kernel_.theta)))
 
-
-    def save(self, filename):
-        self.fig.savefig(filename)
-        plt.close(self.fig)
 
 
 # Adapted from http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
@@ -111,6 +134,7 @@ def plot_log_marginal_likelihood(gp, theta_iterates, filename):
     plt.title("Negative log marginal likelihood")
     plt.savefig(filename)
     plt.close()
+
 
 def plot_mse(all_n, all_mse, true_variance, filename):
     plt.figure()
