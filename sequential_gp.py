@@ -77,7 +77,8 @@ def compute_mse(gp, covariate_space, ground_truth, rng):
 # select_x_fn returns a numpy array
 def run_sequential(select_x_fn, update_theta,
                    covariate_space, ground_truth, 
-                   rng, eval_rng, N_init, N_final, skip_plots):
+                   rng, eval_rng, 
+                   N_init, N_final, N_eval_pts):
     
     kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
         + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
@@ -94,8 +95,10 @@ def run_sequential(select_x_fn, update_theta,
 
     theta_iterates = np.empty((0,kernel.theta.size))
 
-    mse_indices, mse_values = [], []
-    compute_mse_pred = lambda i: i % 10 == 0
+    eval_indices = np.linspace(N_init, N_final, num=N_eval_pts, dtype=int)
+    mse_values = []
+
+    posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
 
     for i in range(N_init, N_final+1):
         x_star = select_x_fn(covariate_space, rng)
@@ -114,22 +117,24 @@ def run_sequential(select_x_fn, update_theta,
         print "final kernel: ", gp.kernel_
 
         theta_iterates = np.vstack([theta_iterates, np.exp(gp.kernel_.theta)])
-        
-        if compute_mse_pred(i):
+        # should only track theta_iterates at eval_indices?
+
+        if i in eval_indices:
             mse = compute_mse(gp, covariate_space, ground_truth, eval_rng)
-            mse_indices.append(i)
             mse_values.append(mse)
-            print "MSE: ", mse
+            print "%d points, MSE: %f" % (i, mse)
 
-        if not skip_plots:
-            posterior_filename = fig_prefix + "%s_posterior_%d.png" % (ground_truth.name, i)
-            plot_posterior(gp, X, y, covariate_space, ground_truth.mean_fn, posterior_filename)
-        
-    mse_filename = fig_prefix + "%s_mse_%d_%d.png" % (ground_truth.name, N_init, N_final)
-    plot_mse(mse_indices, mse_values, ground_truth.variance, mse_filename)
+            plot_num = np.where(eval_indices == i)[0][0]
+            posterior_plot.append(gp, X, y, plot_num, n_points=i)
 
-    lml_filename = fig_prefix + "%s_lml_%d_%d.png" % (ground_truth.name, N_init, N_final)
-    plot_log_marginal_likelihood(gp, theta_iterates, lml_filename)
+    gen_filename = lambda fig_type: fig_prefix + "%s_%s_%d_%d.png" % \
+        (ground_truth.name, fig_type, N_init, N_final)
+
+    posterior_plot.save(gen_filename("posterior"))
+
+    plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse"))
+
+    plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml"))
 
 
 if __name__ == "__main__":
@@ -142,8 +147,8 @@ if __name__ == "__main__":
     parser.add_argument('--ground-truth', type=str, required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
+    parser.add_argument('--n_eval_pts', type=int, default=10)
     parser.add_argument('--random-seed', type=int, default=0)
-    parser.add_argument('--no-plot', action='store_true')
     args = parser.parse_args()
 
     try:
@@ -170,5 +175,5 @@ if __name__ == "__main__":
         eval_rng = np.random.RandomState(args.random_seed),
         N_init = args.nmin,
         N_final = args.nmax,
-        skip_plots = args.no_plot
+        N_eval_pts = args.n_eval_pts
     )

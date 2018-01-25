@@ -6,6 +6,47 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from operator import itemgetter
 
+
+class PosteriorPlot():
+    def __init__(self, covariate_space, truth_fn, n_plots):
+        self.X_ = np.linspace(covariate_space.xmin, covariate_space.xmax, 100)
+        self.X__matrix = self.X_[:, np.newaxis]
+        self.y_truth = [ truth_fn(x) for x in self.X__matrix ]
+
+        self.ncols = int(np.floor(np.sqrt(n_plots)))
+        self.nrows = int(np.ceil(n_plots / float(self.ncols)))
+        self.fig, self.axarr = plt.subplots(self.nrows, self.ncols, figsize=(20, 20))
+        self.fig.subplots_adjust(hspace = 0.25)
+
+
+    def append(self, gp, X_train, y_train, plot_num, n_points):
+        plot_row = plot_num / self.ncols
+        plot_col = plot_num - plot_row * self.ncols
+        ax = self.axarr[plot_row, plot_col]
+
+        # Plot GP posterior
+        y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
+        ax.plot(self.X_, y_mean, 'k', lw=2, zorder=9)
+        ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
+                        y_mean + np.sqrt(np.diag(y_cov)),
+                        alpha=0.5, color='k')
+
+        # Plot ground truth
+        ax.plot(self.X_, self.y_truth, 'r', lw=2, zorder=9)
+
+        # Draw training points, highlighting the last point
+        ax.scatter(X_train[:-1, 0], y_train[:-1], c='k', s=20, zorder=10)
+        ax.scatter(X_train[-1:, 0], y_train[-1:], c='r', s=30, zorder=11, edgecolors=(0, 0, 0))
+        
+        ax.set_title("With %d training points:\nLog-Marginal-Likelihood: %s"
+                     % (n_points, gp.log_marginal_likelihood(gp.kernel_.theta)))
+
+
+    def save(self, filename):
+        self.fig.savefig(filename)
+        plt.close(self.fig)
+
+
 # Adapted from http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
 def plot_posterior(gp, X_train, y_train, covariate_space, truth_fn, filename):
     plt.figure(figsize=(10, 6))
