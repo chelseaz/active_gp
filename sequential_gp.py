@@ -58,8 +58,25 @@ ground_truths = {
         name = 'sin_freq_1_noise_0.01')
 }
 
-def uniform_sampling(covariate_space, rng):
-    return covariate_space.sample(1, rng)
+
+class UniformSelector():
+    def __init__(self, covariate_space, rng):
+        self.covariate_space = covariate_space
+        self.rng = rng
+
+    # returns a numpy array
+    def next_x(self):
+        return covariate_space.sample(1, self.rng)
+
+
+class VarianceMinimizingSelector():
+    def __init__(self, covariate_space, rng):
+        self.covariate_space = covariate_space
+        self.rng = rng
+
+    # returns a numpy array
+    def next_x(self):
+        pass
 
 
 # Compute E(y_hat - y)^2 = E(y_hat - f)^2 + E(f - y)^2
@@ -78,10 +95,9 @@ def compute_mse(gp, covariate_space, ground_truth, rng):
     return np.mean((y_hat - y) ** 2) + ground_truth.variance
 
 
-# select_x_fn returns a numpy array
-def learn_gp(select_x_fn, kernel, update_theta,
+def learn_gp(x_selector, kernel, update_theta,
              covariate_space, ground_truth, 
-             rng, eval_rng, 
+             obs_rng, eval_rng, 
              N_init, N_final, N_eval_pts):
     
     print "\nLearning GP"
@@ -91,10 +107,11 @@ def learn_gp(select_x_fn, kernel, update_theta,
         gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0)
     else:
         gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0, optimizer=None)
+        # setting optimizer to None will prevent hyperparameter fitting
 
     # generate first N observations randomly
-    X = covariate_space.sample(N_init-1, rng)[:, np.newaxis]
-    y = np.array([ground_truth.observe_y_fn(x, rng) for x in X])
+    X = covariate_space.sample(N_init-1, x_selector.rng)[:, np.newaxis]
+    y = np.array([ground_truth.observe_y_fn(x, obs_rng) for x in X])
 
     gp.fit(X, y)
 
@@ -106,8 +123,8 @@ def learn_gp(select_x_fn, kernel, update_theta,
     posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
 
     for i in range(N_init, N_final+1):
-        x_star = select_x_fn(covariate_space, rng)
-        y_star = ground_truth.observe_y_fn(x_star, rng)
+        x_star = x_selector.next_x()
+        y_star = ground_truth.observe_y_fn(x_star, obs_rng)
 
         # update data
         X = np.vstack([X, x_star])
@@ -150,29 +167,27 @@ if __name__ == "__main__":
     print sys.argv
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--strategy', choices=['uniform', 'varmin'], required=True)
     parser.add_argument('--fix-theta', action='store_true')
-    parser.add_argument('--covariate-space', type=str, required=True)
-    parser.add_argument('--ground-truth', type=str, required=True)
+    parser.add_argument('--covariate-space', choices=covariate_spaces.keys(), required=True)
+    parser.add_argument('--ground-truth', choices=ground_truths.keys(), required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
     parser.add_argument('--n_eval_pts', type=int, default=10)
     parser.add_argument('--random-seed', type=int, default=0)
     args = parser.parse_args()
 
-    try:
-        covariate_space = covariate_spaces[args.covariate_space]
-    except KeyError:
-        print "Requested covariate space '%s' not found" % args.covariate_space
-        sys.exit(2)
-
-    try:
-        ground_truth = ground_truths[args.ground_truth]
-    except KeyError:
-        print "Requested ground truth '%s' not found" % args.ground_truth
-        sys.exit(2)
-
     if not os.path.exists(fig_prefix):
         os.makedirs(fig_prefix)
+
+    covariate_space = covariate_spaces[args.covariate_space]
+    ground_truth = ground_truths[args.ground_truth]
+
+    selector_rng = np.random.RandomState(args.random_seed)
+    if args.strategy == 'uniform':
+        x_selector = UniformSelector(covariate_space, selector_rng)
+    elif args.strategy == 'varmin':
+        x_selector = VarianceMinimizingSelector(covariate_space, selector_rng)
 
     default_kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
         + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
@@ -181,12 +196,12 @@ if __name__ == "__main__":
         # learn GP with different fixed values of theta
 
         learn_gp_fix_kernel = lambda kernel: learn_gp(
-            select_x_fn = uniform_sampling,
+            x_selector = x_selector,
             kernel = kernel,
             update_theta = False,
             covariate_space = covariate_space,
             ground_truth = ground_truth,
-            rng = np.random.RandomState(args.random_seed),
+            obs_rng = np.random.RandomState(args.random_seed),
             eval_rng = np.random.RandomState(args.random_seed),
             N_init = args.nmin,
             N_final = args.nmax,
@@ -226,12 +241,12 @@ if __name__ == "__main__":
     else:
         # run sequential version
         learn_gp(
-            select_x_fn = uniform_sampling,
+            x_selector = x_selector,
             kernel = default_kernel,
             update_theta = True,
             covariate_space = covariate_space,
             ground_truth = ground_truth,
-            rng = np.random.RandomState(args.random_seed),
+            obs_rng = np.random.RandomState(args.random_seed),
             eval_rng = np.random.RandomState(args.random_seed),
             N_init = args.nmin,
             N_final = args.nmax,
