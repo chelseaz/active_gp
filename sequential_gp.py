@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import os
 import sys
+import time
 
 from scipy.linalg import cholesky, solve_triangular
 
@@ -108,38 +109,38 @@ class VarianceMinimizingSelector():
         L_n_inv = solve_triangular(L_n, np.eye(L_n.shape[0]), lower=True)
         K_n_inv = L_n_inv.T.dot(L_n_inv)
 
-        # redundant check, time alternatives
-        L_n_inv2 = solve_triangular(L_n.T, np.eye(L_n.shape[0]))
-        K_n_inv2 = L_n_inv2.dot(L_n_inv2.T)
-        assert np.allclose(L_n_inv, L_n_inv2.T)
-        assert np.allclose(K_n_inv, K_n_inv2)
+        # redundant check, takes about as long
+        # L_n_inv2 = solve_triangular(L_n.T, np.eye(L_n.shape[0]))
+        # K_n_inv2 = L_n_inv2.dot(L_n_inv2.T)
+        # assert np.allclose(L_n_inv, L_n_inv2.T)
+        # assert np.allclose(K_n_inv, K_n_inv2)
 
         # sample xi, compute kernel products
         all_xi = self.covariate_space.sample(self.num_xi, self.rng)[:, np.newaxis]
         K_n_trans_xi = gp.kernel_(gp.X_train_, all_xi)  # n x num_xi
         K_n_inv_xi_prod = np.dot(K_n_inv, K_n_trans_xi)  # n x num_xi
 
-        # redundant check, time alternatives
-        K_n_inv_xi_prod2 = np.einsum("ij,jk->ik", K_n_inv, K_n_trans_xi)
-        assert np.allclose(K_n_inv_xi_prod, K_n_inv_xi_prod2)
+        # redundant check, slower
+        # K_n_inv_xi_prod2 = np.einsum("ij,jk->ik", K_n_inv, K_n_trans_xi)
+        # assert np.allclose(K_n_inv_xi_prod, K_n_inv_xi_prod2)
 
         # sample x_star, compute kernel products
         all_x_star = self.covariate_space.sample(self.num_x_star, self.rng)[:, np.newaxis]
         K_n_trans_x_star = gp.kernel_(gp.X_train_, all_x_star)  # n x num_x_star
         qform_xi_x_star = K_n_inv_xi_prod.T.dot(K_n_trans_x_star)  # num_xi x num_x_star
 
-        # redundant check, time alternatives
-        qform_xi_x_star2 = np.einsum("ij,ik -> jk", K_n_inv_xi_prod, K_n_trans_x_star)
-        assert np.allclose(qform_xi_x_star, qform_xi_x_star2)
+        # redundant check, slower
+        # qform_xi_x_star2 = np.einsum("ij,ik -> jk", K_n_inv_xi_prod, K_n_trans_x_star)
+        # assert np.allclose(qform_xi_x_star, qform_xi_x_star2)
 
         # compute predictive variance
         var_x_star = gp.kernel_.diag(all_x_star)  # num_x_star
         var_x_star -= np.einsum("ik,jk,ij->k", K_n_trans_x_star, K_n_trans_x_star, K_n_inv)
         assert not np.any(var_x_star < 1e-8)
 
-        # redundant check, time alternatives
-        _, std_x_star2 = gp.predict(all_x_star, return_std=True)
-        assert np.allclose(var_x_star, std_x_star2 ** 2)
+        # redundant check, slower
+        # _, std_x_star2 = gp.predict(all_x_star, return_std=True)
+        # assert np.allclose(var_x_star, std_x_star2 ** 2)
 
         # compute average variance reduction at each x_star
         var_delta = np.power(qform_xi_x_star - gp.kernel_(all_xi, all_x_star), 2) # num_xi x num_x_star
@@ -147,8 +148,9 @@ class VarianceMinimizingSelector():
         avg_var_delta /= var_x_star
         x_star_index = np.argmax(avg_var_delta)
 
+        # todo visualize below
         # print np.vstack([all_x_star[:,0], avg_var_delta]).T
-        print all_x_star[x_star_index]
+        # print all_x_star[x_star_index]
         return all_x_star[x_star_index]
 
 
