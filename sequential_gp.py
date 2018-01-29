@@ -14,6 +14,10 @@ from viz import *
 
 fig_prefix = "figs/"
 
+def filename_for(strategy, ground_truth, N_init, N_final, custom):
+    return fig_prefix + "%s_%s_%s_%d_%d.png" % \
+        (ground_truth, strategy, custom, N_init, N_final)
+
 
 class CovariateSpace():
     def __init__(self, xmin, xmax):
@@ -65,6 +69,7 @@ class UniformSelector():
     def __init__(self, covariate_space, rng):
         self.covariate_space = covariate_space
         self.rng = rng
+        self.name = "uniform"
 
     # returns a numpy array
     def next_x(self, gp):
@@ -77,6 +82,7 @@ class VarianceMinimizingSelector():
         self.rng = rng
         self.num_xi = num_xi
         self.num_x_star = num_x_star
+        self.name = "varmin"
 
     # returns a numpy array
     def next_x(self, gp):
@@ -215,8 +221,8 @@ def learn_gp(x_selector, kernel, update_theta,
 
     print "Final kernel: ", gp.kernel_
 
-    gen_filename = lambda fig_type: fig_prefix + "%s_%s_%d_%d.png" % \
-        (ground_truth.name, fig_type, N_init, N_final)
+    gen_filename = lambda fig_type: filename_for(x_selector.name, ground_truth.name,
+        N_init, N_final, fig_type)
 
     if update_theta:
         posterior_plot.save(gen_filename("posterior_seq"))
@@ -286,8 +292,8 @@ if __name__ == "__main__":
             mse_diffls_plot.append(eval_indices, mse_values, 
                 label="length-scale=%.2e" % length_scale)
 
-        mse_filename = fig_prefix + "%s_mse_diffls_%d_%d.png" % \
-            (ground_truth.name, args.nmin, args.nmax)
+        mse_filename = filename_for(x_selector.name, ground_truth.name,
+            args.nmin, args.nmax, "mse_diffls")
         mse_diffls_plot.save(mse_filename)
 
         # try different variance values
@@ -301,8 +307,8 @@ if __name__ == "__main__":
             mse_diffvar_plot.append(eval_indices, mse_values, 
                 label="variance=%.2e" % variance)
 
-        mse_filename = fig_prefix + "%s_mse_diffvar_%d_%d.png" % \
-            (ground_truth.name, args.nmin, args.nmax)
+        mse_filename = filename_for(x_selector.name, ground_truth.name,
+            args.nmin, args.nmax, "mse_diffvar")
         mse_diffvar_plot.save(mse_filename)
 
     else:
