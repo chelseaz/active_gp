@@ -15,20 +15,31 @@ from viz import *
 
 fig_prefix = "figs/"
 
-def filename_for(strategy, ground_truth, N_init, N_final, custom):
-    return fig_prefix + "%s_%s_%s_%d_%d.png" % \
-        (ground_truth, strategy, custom, N_init, N_final)
+def filename_for(strategy, ground_truth, covariate_space, N_init, N_final, custom):
+    return fig_prefix + "%s_%s_%s_%s_%d_%d.png" % \
+        (ground_truth, covariate_space, strategy, custom, N_init, N_final)
 
 
-class CovariateSpace():
+class UniformCovariateSpace():
     def __init__(self, xmin, xmax):
         self.xmin = xmin
         self.xmax = xmax
+        self.name = 'uniform'
 
     def sample(self, n, rng):
-        # sample x uniformly for now
-        # eventually incorporate density of x
         return rng.uniform(self.xmin, self.xmax, n)
+
+
+class GaussianCovariateSpace():
+    def __init__(self, loc, scale):
+        self.loc = loc
+        self.scale = scale
+        self.xmin = -3*scale
+        self.xmax = 3*scale
+        self.name = 'gaussian'
+
+    def sample(self, n, rng):
+        return rng.normal(self.loc, self.scale, n)
 
 
 class GroundTruth():
@@ -47,7 +58,8 @@ class GroundTruth():
 
 
 covariate_spaces = {
-    'centered': CovariateSpace(xmin = -1.0, xmax = 1.0)
+    'uniform': UniformCovariateSpace(xmin = -1.0, xmax = 1.0),
+    'gaussian': GaussianCovariateSpace(loc = 0, scale = 1.0/3)
 }
 
 # Adapted from scikit-learn GP example
@@ -66,11 +78,11 @@ ground_truths = {
 }
 
 
-class UniformSelector():
+class RandomSelector():
     def __init__(self, covariate_space, rng):
         self.covariate_space = covariate_space
         self.rng = rng
-        self.name = "uniform"
+        self.name = "random"
 
     # returns a numpy array
     def next_x(self, gp):
@@ -148,7 +160,7 @@ class VarianceMinimizingSelector():
         avg_var_delta /= var_x_star
         x_star_index = np.argmax(avg_var_delta)
 
-        # todo visualize below
+        # TODO: visualize below
         # print np.vstack([all_x_star[:,0], avg_var_delta]).T
         # print all_x_star[x_star_index]
         return all_x_star[x_star_index]
@@ -224,7 +236,7 @@ def learn_gp(x_selector, kernel, update_theta,
     print "Final kernel: ", gp.kernel_
 
     gen_filename = lambda fig_type: filename_for(x_selector.name, ground_truth.name,
-        N_init, N_final, fig_type)
+        covariate_space.name, N_init, N_final, fig_type)
 
     if update_theta:
         posterior_plot.save(gen_filename("posterior_seq"))
@@ -242,14 +254,14 @@ if __name__ == "__main__":
     print sys.argv
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--strategy', choices=['uniform', 'varmin'], required=True)
+    parser.add_argument('--strategy', choices=['random', 'varmin'], required=True)
     parser.add_argument('--fix-theta', action='store_true')
     parser.add_argument('--covariate-space', choices=covariate_spaces.keys(), required=True)
     parser.add_argument('--ground-truth', choices=ground_truths.keys(), required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
     parser.add_argument('--n_eval_pts', type=int, default=10)
-    parser.add_argument('--random-seed', type=int, default=0)
+    parser.add_argument('--random-seed', type=int, default=123)
     args = parser.parse_args()
 
     if not os.path.exists(fig_prefix):
@@ -259,8 +271,8 @@ if __name__ == "__main__":
     ground_truth = ground_truths[args.ground_truth]
 
     selector_rng = np.random.RandomState(args.random_seed)
-    if args.strategy == 'uniform':
-        x_selector = UniformSelector(covariate_space, selector_rng)
+    if args.strategy == 'random':
+        x_selector = RandomSelector(covariate_space, selector_rng)
     elif args.strategy == 'varmin':
         x_selector = VarianceMinimizingSelector(covariate_space, selector_rng)
 
@@ -276,8 +288,8 @@ if __name__ == "__main__":
             update_theta = False,
             covariate_space = covariate_space,
             ground_truth = ground_truth,
-            obs_rng = np.random.RandomState(args.random_seed),
-            eval_rng = np.random.RandomState(args.random_seed),
+            obs_rng = np.random.RandomState(args.random_seed*2),
+            eval_rng = np.random.RandomState(args.random_seed*4),
             N_init = args.nmin,
             N_final = args.nmax,
             N_eval_pts = args.n_eval_pts
@@ -294,7 +306,7 @@ if __name__ == "__main__":
             mse_diffls_plot.append(eval_indices, mse_values, 
                 label="length-scale=%.2e" % length_scale)
 
-        mse_filename = filename_for(x_selector.name, ground_truth.name,
+        mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
             args.nmin, args.nmax, "mse_diffls")
         mse_diffls_plot.save(mse_filename)
 
@@ -309,7 +321,7 @@ if __name__ == "__main__":
             mse_diffvar_plot.append(eval_indices, mse_values, 
                 label="variance=%.2e" % variance)
 
-        mse_filename = filename_for(x_selector.name, ground_truth.name,
+        mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
             args.nmin, args.nmax, "mse_diffvar")
         mse_diffvar_plot.save(mse_filename)
 
@@ -321,8 +333,8 @@ if __name__ == "__main__":
             update_theta = True,
             covariate_space = covariate_space,
             ground_truth = ground_truth,
-            obs_rng = np.random.RandomState(args.random_seed),
-            eval_rng = np.random.RandomState(args.random_seed),
+            obs_rng = np.random.RandomState(args.random_seed*2),
+            eval_rng = np.random.RandomState(args.random_seed*4),
             N_init = args.nmin,
             N_final = args.nmax,
             N_eval_pts = args.n_eval_pts
