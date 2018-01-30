@@ -148,7 +148,7 @@ class VarianceMinimizingSelector():
         # compute predictive variance
         var_x_star = gp.kernel_.diag(all_x_star)  # num_x_star
         var_x_star -= np.einsum("ik,jk,ij->k", K_n_trans_x_star, K_n_trans_x_star, K_n_inv)
-        assert not np.any(var_x_star < 1e-8)
+        assert not np.any(var_x_star < 1e-16)
 
         # redundant check, slower
         # _, std_x_star2 = gp.predict(all_x_star, return_std=True)
@@ -254,8 +254,8 @@ if __name__ == "__main__":
     print sys.argv
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', choices=['seq', 'compare-fixed-seq', 'compare-fixed-fixed'], default='seq')
     parser.add_argument('--strategy', choices=['random', 'varmin'], required=True)
-    parser.add_argument('--fix-theta', action='store_true')
     parser.add_argument('--covariate-space', choices=covariate_spaces.keys(), required=True)
     parser.add_argument('--ground-truth', choices=ground_truths.keys(), required=True)
     parser.add_argument('--nmin', type=int, default=11)
@@ -271,6 +271,9 @@ if __name__ == "__main__":
     ground_truth = ground_truths[args.ground_truth]
 
     selector_rng = np.random.RandomState(args.random_seed)
+    obs_rng = np.random.RandomState(args.random_seed*2)
+    eval_rng = np.random.RandomState(args.random_seed*4)
+
     if args.strategy == 'random':
         x_selector = RandomSelector(covariate_space, selector_rng)
     elif args.strategy == 'varmin':
@@ -279,21 +282,34 @@ if __name__ == "__main__":
     default_kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
         + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
 
-    if args.fix_theta:
-        # learn GP with different fixed values of theta
+    learn_gp_fix_kernel = lambda kernel: learn_gp(
+        x_selector = x_selector,
+        kernel = kernel,
+        update_theta = False,
+        covariate_space = covariate_space,
+        ground_truth = ground_truth,
+        obs_rng = obs_rng,
+        eval_rng = eval_rng,
+        N_init = args.nmin,
+        N_final = args.nmax,
+        N_eval_pts = args.n_eval_pts
+    )
 
-        learn_gp_fix_kernel = lambda kernel: learn_gp(
-            x_selector = x_selector,
-            kernel = kernel,
-            update_theta = False,
-            covariate_space = covariate_space,
-            ground_truth = ground_truth,
-            obs_rng = np.random.RandomState(args.random_seed*2),
-            eval_rng = np.random.RandomState(args.random_seed*4),
-            N_init = args.nmin,
-            N_final = args.nmax,
-            N_eval_pts = args.n_eval_pts
-        )
+    learn_gp_est_kernel = lambda init_kernel: learn_gp(
+        x_selector = x_selector,
+        kernel = init_kernel,
+        update_theta = True,
+        covariate_space = covariate_space,
+        ground_truth = ground_truth,
+        obs_rng = obs_rng,
+        eval_rng = eval_rng,
+        N_init = args.nmin,
+        N_final = args.nmax,
+        N_eval_pts = args.n_eval_pts
+    )
+
+    if args.mode == 'compare-fixed-fixed':
+        # learn GP with different fixed values of theta
 
         # try different length-scale values
         mse_diffls_plot = MSEPlot(ground_truth.variance,
@@ -325,17 +341,22 @@ if __name__ == "__main__":
             args.nmin, args.nmax, "mse_diffvar")
         mse_diffvar_plot.save(mse_filename)
 
+    elif args.mode == 'compare-fixed-seq':
+        # compare GP learning with fixed and estimated theta
+        mse_plot = MSEPlot(ground_truth.variance,
+            title="Learning GP with initial hyperparameters %s" % default_kernel)
+
+        eval_indices, mse_values = learn_gp_fix_kernel(default_kernel)
+        mse_plot.append(eval_indices, mse_values, label="fixed")
+
+        eval_indices, mse_values = learn_gp_est_kernel(default_kernel)
+        mse_plot.append(eval_indices, mse_values, label="estimated")
+
+        mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
+            args.nmin, args.nmax, "mse_seq_vs_fixed")
+        mse_plot.save(mse_filename)
+
     else:
         # run sequential version
-        learn_gp(
-            x_selector = x_selector,
-            kernel = default_kernel,
-            update_theta = True,
-            covariate_space = covariate_space,
-            ground_truth = ground_truth,
-            obs_rng = np.random.RandomState(args.random_seed*2),
-            eval_rng = np.random.RandomState(args.random_seed*4),
-            N_init = args.nmin,
-            N_final = args.nmax,
-            N_eval_pts = args.n_eval_pts
-        )
+        learn_gp_est_kernel(default_kernel)
+
