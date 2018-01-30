@@ -79,26 +79,24 @@ ground_truths = {
 
 
 class RandomSelector():
-    def __init__(self, covariate_space, rng):
+    def __init__(self, covariate_space):
         self.covariate_space = covariate_space
-        self.rng = rng
         self.name = "random"
 
     # returns a numpy array
-    def next_x(self, gp):
-        return self.covariate_space.sample(1, self.rng)
+    def next_x(self, gp, rng):
+        return self.covariate_space.sample(1, rng)
 
 
 class VarianceMinimizingSelector():
-    def __init__(self, covariate_space, rng, num_xi=500, num_x_star=300):
+    def __init__(self, covariate_space, num_xi=500, num_x_star=300):
         self.covariate_space = covariate_space
-        self.rng = rng
         self.num_xi = num_xi
         self.num_x_star = num_x_star
         self.name = "varmin"
 
     # returns a numpy array
-    def next_x(self, gp):
+    def next_x(self, gp, rng):
         # sample num_xi values of xi from covariate space (reused across all candidates x_*)
         # compute cholesky of K_n, then use cho_solve with every K(X_n, xi) vector
         #   O(n^3), then O(n^2)
@@ -184,7 +182,7 @@ def compute_mse(gp, covariate_space, ground_truth, rng):
 
 def learn_gp(x_selector, kernel, update_theta,
              covariate_space, ground_truth, 
-             obs_rng, eval_rng, 
+             selector_rng, obs_rng, eval_rng, 
              N_init, N_final, N_eval_pts):
     
     print "\nLearning GP"
@@ -197,7 +195,7 @@ def learn_gp(x_selector, kernel, update_theta,
         # setting optimizer to None will prevent hyperparameter fitting
 
     # generate first N observations randomly
-    X = covariate_space.sample(N_init-1, x_selector.rng)[:, np.newaxis]
+    X = covariate_space.sample(N_init-1, selector_rng)[:, np.newaxis]
     y = np.array([ground_truth.observe_y_fn(x, obs_rng) for x in X])
 
     gp.fit(X, y)
@@ -210,7 +208,7 @@ def learn_gp(x_selector, kernel, update_theta,
     posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
 
     for i in range(N_init, N_final+1):
-        x_star = x_selector.next_x(gp)
+        x_star = x_selector.next_x(gp, selector_rng)
         y_star = ground_truth.observe_y_fn(x_star, obs_rng)
 
         # update data
@@ -270,14 +268,15 @@ if __name__ == "__main__":
     covariate_space = covariate_spaces[args.covariate_space]
     ground_truth = ground_truths[args.ground_truth]
 
-    selector_rng = np.random.RandomState(args.random_seed)
-    obs_rng = np.random.RandomState(args.random_seed*2)
-    eval_rng = np.random.RandomState(args.random_seed*4)
+    # make these wrappers to standardize the random number generator across runs
+    create_selector_rng = lambda: np.random.RandomState(args.random_seed)
+    create_obs_rng = lambda: np.random.RandomState(args.random_seed*2)
+    create_eval_rng = lambda: np.random.RandomState(args.random_seed*4)
 
     if args.strategy == 'random':
-        x_selector = RandomSelector(covariate_space, selector_rng)
+        x_selector = RandomSelector(covariate_space)
     elif args.strategy == 'varmin':
-        x_selector = VarianceMinimizingSelector(covariate_space, selector_rng)
+        x_selector = VarianceMinimizingSelector(covariate_space)
 
     default_kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
         + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
@@ -288,8 +287,9 @@ if __name__ == "__main__":
         update_theta = False,
         covariate_space = covariate_space,
         ground_truth = ground_truth,
-        obs_rng = obs_rng,
-        eval_rng = eval_rng,
+        selector_rng = create_selector_rng(),
+        obs_rng = create_obs_rng(),
+        eval_rng = create_eval_rng(),
         N_init = args.nmin,
         N_final = args.nmax,
         N_eval_pts = args.n_eval_pts
@@ -301,8 +301,9 @@ if __name__ == "__main__":
         update_theta = True,
         covariate_space = covariate_space,
         ground_truth = ground_truth,
-        obs_rng = obs_rng,
-        eval_rng = eval_rng,
+        selector_rng = create_selector_rng(),
+        obs_rng = create_obs_rng(),
+        eval_rng = create_eval_rng(),
         N_init = args.nmin,
         N_final = args.nmax,
         N_eval_pts = args.n_eval_pts
