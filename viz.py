@@ -56,7 +56,26 @@ class DensityPlot(IncrementalPlot):
     def append(self, X_train, plot_num):
         ax = self.get_subplot(plot_num)
         sns.distplot(X_train[:, 0], rug=True, ax=ax)
-        ax.set_title("With %d training points" % X_train.shape[0])
+        ax.set_title("Histogram of first %d training points" % X_train.shape[0])
+
+
+class ObjectivePlot(IncrementalPlot):
+    def __init__(self, n_plots):
+        self.init_subplots(n_plots)
+
+    def append(self, selector, plot_num, n_points):
+        ax = self.get_subplot(plot_num)
+
+        x = selector.all_x_star[:,0]
+        y = selector.avg_var_delta
+        argmax_index = selector.x_star_index
+
+        ax.scatter(x, y, c='k', s=10)
+        # highlight the argmax
+        ax.scatter(x[argmax_index], y[argmax_index], c='r', s=30, edgecolors=(0, 0, 0))
+
+        ax.set_ylabel("Variance reduction")
+        ax.set_title("Selection of training point %d" % n_points)
 
 
 class PosteriorPlot(IncrementalPlot):
@@ -84,7 +103,7 @@ class PosteriorPlot(IncrementalPlot):
         ax.scatter(X_train[:-1, 0], y_train[:-1], c='k', s=20, zorder=10)
         ax.scatter(X_train[-1:, 0], y_train[-1:], c='r', s=30, zorder=11, edgecolors=(0, 0, 0))
         
-        ax.set_title("With %d training points:\nLog-Marginal-Likelihood: %s"
+        ax.set_title("GP posterior with %d training points\nLog-Marginal-Likelihood: %s"
                      % (X_train.shape[0], gp.log_marginal_likelihood(gp.kernel_.theta)))
 
 

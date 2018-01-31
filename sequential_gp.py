@@ -165,9 +165,11 @@ class VarianceMinimizingSelector():
         avg_var_delta /= var_x_star
         x_star_index = np.argmax(avg_var_delta)
 
-        # TODO: visualize below
-        # print np.vstack([all_x_star[:,0], avg_var_delta]).T
-        # print all_x_star[x_star_index]
+        # save these quantities for access by plotting routines
+        self.all_x_star = all_x_star
+        self.avg_var_delta = avg_var_delta
+        self.x_star_index = x_star_index
+
         return all_x_star[x_star_index]
 
 
@@ -214,6 +216,8 @@ def learn_gp(x_selector, kernel, update_theta,
 
     posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
     density_plot = DensityPlot(N_eval_pts)
+    if isinstance(x_selector, VarianceMinimizingSelector):
+        objective_plot = ObjectivePlot(N_eval_pts)
 
     for i in range(N_init, N_final+1):
         x_star = x_selector.next_x(gp, selector_rng)
@@ -239,6 +243,8 @@ def learn_gp(x_selector, kernel, update_theta,
             plot_num = np.where(eval_indices == i)[0][0]
             posterior_plot.append(gp, X, y, plot_num)
             density_plot.append(X, plot_num)
+            if objective_plot is not None:
+                objective_plot.append(x_selector, plot_num, n_points=i)
 
     print "Final kernel: ", gp.kernel_
 
@@ -248,6 +254,8 @@ def learn_gp(x_selector, kernel, update_theta,
 
     posterior_plot.save(gen_filename("posterior_" + kernel_str))
     density_plot.save(gen_filename("training_density_" + kernel_str))
+    if objective_plot is not None:
+        objective_plot.save(gen_filename("objective_" + kernel_str))
     if plot_all:
         plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse_" + kernel_str))
         plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml_" + kernel_str))
