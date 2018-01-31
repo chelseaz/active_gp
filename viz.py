@@ -21,10 +21,10 @@ class MSEPlot(IncrementalPlot):
     def __init__(self, true_variance, title):
         self.title = title
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
-        self.ax.axhline(true_variance, color='r', linewidth=1)
+        self.ax.axhline(true_variance, color='r', linewidth=1, linestyle='--')
         
     def append(self, n_values, mse_values, label):
-        self.ax.plot(n_values, mse_values, label=label, linewidth=1)
+        self.ax.plot(n_values, mse_values, label=label, linewidth=2)
         # TODO: different colors
 
     def complete(self):

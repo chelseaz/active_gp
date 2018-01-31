@@ -15,9 +15,16 @@ from viz import *
 
 fig_prefix = "figs/"
 
-def filename_for(strategy, ground_truth, covariate_space, N_init, N_final, custom):
-    return fig_prefix + "%s_%s_%s_%s_%d_%d.png" % \
-        (ground_truth, covariate_space, strategy, custom, N_init, N_final)
+def filename_for(strategy, update_theta, ground_truth, covariate_space, N_init, N_final, custom):
+    if update_theta is None:
+        fixed_or_est = "both"
+    elif update_theta:
+        fixed_or_est = "estimated"
+    else:
+        fixed_or_est = "fixed"
+
+    return fig_prefix + "%s_%s_%s_%s_%s_%d_%d.png" % \
+        (ground_truth, covariate_space, strategy, fixed_or_est, custom, N_init, N_final)
 
 
 class UniformCovariateSpace():
@@ -183,7 +190,7 @@ def compute_mse(gp, covariate_space, ground_truth, rng):
 def learn_gp(x_selector, kernel, update_theta,
              covariate_space, ground_truth, 
              selector_rng, obs_rng, eval_rng, 
-             N_init, N_final, N_eval_pts):
+             N_init, N_final, N_eval_pts, plot_all):
     
     print "\nLearning GP"
     print "Initial kernel: ", kernel
@@ -233,16 +240,14 @@ def learn_gp(x_selector, kernel, update_theta,
 
     print "Final kernel: ", gp.kernel_
 
-    gen_filename = lambda fig_type: filename_for(x_selector.name, ground_truth.name,
-        covariate_space.name, N_init, N_final, fig_type)
+    gen_filename = lambda fig_type: filename_for(x_selector.name, update_theta,
+        ground_truth.name, covariate_space.name, N_init, N_final, fig_type)
+    kernel_str = '_'.join(map(lambda f: "%.2e" % f, np.exp(kernel.theta)))
 
-    if update_theta:
-        posterior_plot.save(gen_filename("posterior_seq"))
-        plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse_seq"))
-        plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml_seq"))
-    else:
-        kernel_str = '_'.join(map(lambda f: "%.2e" % f, np.exp(kernel.theta)))
-        posterior_plot.save(gen_filename("posterior_" + kernel_str))
+    posterior_plot.save(gen_filename("posterior_" + kernel_str))
+    if plot_all:
+        plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse_" + kernel_str))
+        plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml_" + kernel_str))
 
     return (eval_indices, mse_values)
 
@@ -258,7 +263,7 @@ if __name__ == "__main__":
     parser.add_argument('--ground-truth', choices=ground_truths.keys(), required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
-    parser.add_argument('--n_eval_pts', type=int, default=10)
+    parser.add_argument('--n_eval_pts', type=int, default=12)
     parser.add_argument('--random-seed', type=int, default=123)
     args = parser.parse_args()
 
@@ -281,7 +286,7 @@ if __name__ == "__main__":
     default_kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
         + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
 
-    def learn_gp_wrapper(kernel, update_theta):
+    def learn_gp_wrapper(kernel, update_theta, plot_all=False):
         return learn_gp(
             x_selector = x_selector,
             kernel = kernel,
@@ -293,7 +298,8 @@ if __name__ == "__main__":
             eval_rng = create_eval_rng(),
             N_init = args.nmin,
             N_final = args.nmax,
-            N_eval_pts = args.n_eval_pts
+            N_eval_pts = args.n_eval_pts,
+            plot_all = plot_all
         )
 
     def compare_theta_values(update_theta):
@@ -310,8 +316,9 @@ if __name__ == "__main__":
             mse_diffls_plot.append(eval_indices, mse_values, 
                 label="length-scale=%.2e" % length_scale)
 
-        mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
-            args.nmin, args.nmax, "mse_%s_diffls" % fixed_or_est)
+        mse_filename = filename_for(x_selector.name, update_theta, 
+            ground_truth.name, covariate_space.name,
+            args.nmin, args.nmax, "mse_diffls")
         mse_diffls_plot.save(mse_filename)
 
         # try different variance values
@@ -325,8 +332,9 @@ if __name__ == "__main__":
             mse_diffvar_plot.append(eval_indices, mse_values, 
                 label="variance=%.2e" % variance)
 
-        mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
-            args.nmin, args.nmax, "mse_%s_diffvar" % fixed_or_est)
+        mse_filename = filename_for(x_selector.name, update_theta, 
+            ground_truth.name, covariate_space.name,
+            args.nmin, args.nmax, "mse_diffvar")
         mse_diffvar_plot.save(mse_filename)
 
 
@@ -349,11 +357,12 @@ if __name__ == "__main__":
         eval_indices, mse_values = learn_gp_wrapper(default_kernel, update_theta=True)
         mse_plot.append(eval_indices, mse_values, label="estimated")
 
-        mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
-            args.nmin, args.nmax, "mse_estimated_vs_fixed")
+        mse_filename = filename_for(x_selector.name, None,
+            ground_truth.name, covariate_space.name,
+            args.nmin, args.nmax, "mse")
         mse_plot.save(mse_filename)
 
     else:
         # run sequential version
-        learn_gp_est_kernel(default_kernel)
+        learn_gp_est_kernel(default_kernel, plot_all=True)
 
