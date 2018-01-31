@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import numpy as np
+import seaborn as sns
 
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
@@ -10,6 +11,17 @@ from operator import itemgetter
 class IncrementalPlot():
     def complete(self):
         pass
+
+    def init_subplots(self, n_plots):
+        self.ncols = int(np.floor(np.sqrt(n_plots)))
+        self.nrows = int(np.ceil(n_plots / float(self.ncols)))
+        self.fig, self.axarr = plt.subplots(self.nrows, self.ncols, figsize=(20, 20))
+        self.fig.subplots_adjust(hspace = 0.25)
+
+    def get_subplot(self, plot_num):
+        plot_row = plot_num / self.ncols
+        plot_col = plot_num - plot_row * self.ncols
+        return self.axarr[plot_row, plot_col]
 
     def save(self, filename):
         self.complete()
@@ -37,22 +49,26 @@ class MSEPlot(IncrementalPlot):
         # self.fig.subplots_adjust(right=0.7)
 
 
+class DensityPlot(IncrementalPlot):
+    def __init__(self, n_plots):
+        self.init_subplots(n_plots)
+
+    def append(self, X_train, plot_num):
+        ax = self.get_subplot(plot_num)
+        sns.distplot(X_train[:, 0], rug=True, ax=ax)
+        ax.set_title("With %d training points" % X_train.shape[0])
+
+
 class PosteriorPlot(IncrementalPlot):
     def __init__(self, covariate_space, truth_fn, n_plots):
         self.X_ = np.linspace(covariate_space.xmin, covariate_space.xmax, 100)
         self.X__matrix = self.X_[:, np.newaxis]
         self.y_truth = [ truth_fn(x) for x in self.X__matrix ]
 
-        self.ncols = int(np.floor(np.sqrt(n_plots)))
-        self.nrows = int(np.ceil(n_plots / float(self.ncols)))
-        self.fig, self.axarr = plt.subplots(self.nrows, self.ncols, figsize=(20, 20))
-        self.fig.subplots_adjust(hspace = 0.25)
+        self.init_subplots(n_plots)
 
-
-    def append(self, gp, X_train, y_train, plot_num, n_points):
-        plot_row = plot_num / self.ncols
-        plot_col = plot_num - plot_row * self.ncols
-        ax = self.axarr[plot_row, plot_col]
+    def append(self, gp, X_train, y_train, plot_num):
+        ax = self.get_subplot(plot_num)
 
         # Plot GP posterior
         y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
@@ -69,7 +85,7 @@ class PosteriorPlot(IncrementalPlot):
         ax.scatter(X_train[-1:, 0], y_train[-1:], c='r', s=30, zorder=11, edgecolors=(0, 0, 0))
         
         ax.set_title("With %d training points:\nLog-Marginal-Likelihood: %s"
-                     % (n_points, gp.log_marginal_likelihood(gp.kernel_.theta)))
+                     % (X_train.shape[0], gp.log_marginal_likelihood(gp.kernel_.theta)))
 
 
 
@@ -148,5 +164,16 @@ def plot_mse(all_n, all_mse, true_variance, filename):
     plt.yscale("log")
     
     plt.title("MSE of posterior mean across iterations")
+    plt.savefig(filename)
+    plt.close()
+
+
+def plot_density(X, filename):
+    plt.figure()
+    
+    # sns.kdeplot(X[:, 0])
+    sns.distplot(X[:, 0], rug=True)
+
+    plt.title("Distribution of training points")
     plt.savefig(filename)
     plt.close()

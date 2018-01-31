@@ -213,6 +213,7 @@ def learn_gp(x_selector, kernel, update_theta,
     mse_values = []
 
     posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
+    density_plot = DensityPlot(N_eval_pts)
 
     for i in range(N_init, N_final+1):
         x_star = x_selector.next_x(gp, selector_rng)
@@ -236,7 +237,8 @@ def learn_gp(x_selector, kernel, update_theta,
             print "%d points, MSE: %f" % (i, mse)
 
             plot_num = np.where(eval_indices == i)[0][0]
-            posterior_plot.append(gp, X, y, plot_num, n_points=i)
+            posterior_plot.append(gp, X, y, plot_num)
+            density_plot.append(X, plot_num)
 
     print "Final kernel: ", gp.kernel_
 
@@ -245,6 +247,7 @@ def learn_gp(x_selector, kernel, update_theta,
     kernel_str = '_'.join(map(lambda f: "%.2e" % f, np.exp(kernel.theta)))
 
     posterior_plot.save(gen_filename("posterior_" + kernel_str))
+    density_plot.save(gen_filename("training_density_" + kernel_str))
     if plot_all:
         plot_mse(eval_indices, mse_values, ground_truth.variance, gen_filename("mse_" + kernel_str))
         plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml_" + kernel_str))
@@ -364,5 +367,5 @@ if __name__ == "__main__":
 
     else:
         # run sequential version
-        learn_gp_est_kernel(default_kernel, plot_all=True)
+        learn_gp_wrapper(default_kernel, update_theta=True, plot_all=True)
 
