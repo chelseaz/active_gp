@@ -73,15 +73,15 @@ covariate_spaces = {
 # http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
 ground_truths = {
     'high_freq_sinusoid': GroundTruth(
-        variance = 0.01,
+        variance = 0.25,
         mean_fn = lambda x: np.sin(3 * 2 * np.pi * x[0]),
-        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.01)),
-        name = 'sin_freq_3_noise_0.01'),
+        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
+        name = 'sin_freq_3_noise_0.25'),
     'low_freq_sinusoid': GroundTruth(
-        variance = 0.01,
+        variance = 0.25,
         mean_fn = lambda x: np.sin(1 * 2 * np.pi * x[0]),
-        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.01)),
-        name = 'sin_freq_1_noise_0.01')
+        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
+        name = 'sin_freq_1_noise_0.25')
 }
 
 
