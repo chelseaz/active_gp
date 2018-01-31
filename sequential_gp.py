@@ -126,7 +126,7 @@ class VarianceMinimizingSelector():
         # assert np.allclose(K_n_inv, K_n_inv2)
 
         # sample xi, compute kernel products
-        all_xi = self.covariate_space.sample(self.num_xi, self.rng)[:, np.newaxis]
+        all_xi = self.covariate_space.sample(self.num_xi, rng)[:, np.newaxis]
         K_n_trans_xi = gp.kernel_(gp.X_train_, all_xi)  # n x num_xi
         K_n_inv_xi_prod = np.dot(K_n_inv, K_n_trans_xi)  # n x num_xi
 
@@ -135,7 +135,7 @@ class VarianceMinimizingSelector():
         # assert np.allclose(K_n_inv_xi_prod, K_n_inv_xi_prod2)
 
         # sample x_star, compute kernel products
-        all_x_star = self.covariate_space.sample(self.num_x_star, self.rng)[:, np.newaxis]
+        all_x_star = self.covariate_space.sample(self.num_x_star, rng)[:, np.newaxis]
         K_n_trans_x_star = gp.kernel_(gp.X_train_, all_x_star)  # n x num_x_star
         qform_xi_x_star = K_n_inv_xi_prod.T.dot(K_n_trans_x_star)  # num_xi x num_x_star
 
@@ -252,7 +252,7 @@ if __name__ == "__main__":
     print sys.argv
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['seq', 'compare-fixed-seq', 'compare-fixed-fixed'], default='seq')
+    parser.add_argument('--mode', choices=['seq', 'compare-seq-fixed', 'compare-seq-seq', 'compare-fixed-fixed'], default='seq')
     parser.add_argument('--strategy', choices=['random', 'varmin'], required=True)
     parser.add_argument('--covariate-space', choices=covariate_spaces.keys(), required=True)
     parser.add_argument('--ground-truth', choices=ground_truths.keys(), required=True)
@@ -281,80 +281,76 @@ if __name__ == "__main__":
     default_kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
         + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
 
-    learn_gp_fix_kernel = lambda kernel: learn_gp(
-        x_selector = x_selector,
-        kernel = kernel,
-        update_theta = False,
-        covariate_space = covariate_space,
-        ground_truth = ground_truth,
-        selector_rng = create_selector_rng(),
-        obs_rng = create_obs_rng(),
-        eval_rng = create_eval_rng(),
-        N_init = args.nmin,
-        N_final = args.nmax,
-        N_eval_pts = args.n_eval_pts
-    )
+    def learn_gp_wrapper(kernel, update_theta):
+        return learn_gp(
+            x_selector = x_selector,
+            kernel = kernel,
+            update_theta = update_theta,
+            covariate_space = covariate_space,
+            ground_truth = ground_truth,
+            selector_rng = create_selector_rng(),
+            obs_rng = create_obs_rng(),
+            eval_rng = create_eval_rng(),
+            N_init = args.nmin,
+            N_final = args.nmax,
+            N_eval_pts = args.n_eval_pts
+        )
 
-    learn_gp_est_kernel = lambda init_kernel: learn_gp(
-        x_selector = x_selector,
-        kernel = init_kernel,
-        update_theta = True,
-        covariate_space = covariate_space,
-        ground_truth = ground_truth,
-        selector_rng = create_selector_rng(),
-        obs_rng = create_obs_rng(),
-        eval_rng = create_eval_rng(),
-        N_init = args.nmin,
-        N_final = args.nmax,
-        N_eval_pts = args.n_eval_pts
-    )
-
-    if args.mode == 'compare-fixed-fixed':
-        # learn GP with different fixed values of theta
+    def compare_theta_values(update_theta):
+        fixed_or_est = "estimated" if update_theta else "fixed"
 
         # try different length-scale values
         mse_diffls_plot = MSEPlot(ground_truth.variance,
-            title="Learning GP with fixed hyperparameters, variance=%.3f" % ground_truth.variance)
+            title="Learning GP with %s hyperparameters, variance=%.3f" % (fixed_or_est, ground_truth.variance))
 
         for length_scale in ground_truth.approx_length_scale * np.logspace(-1, 1, 9):
             kernel = RBF(length_scale=length_scale, length_scale_bounds=(1e-2, 1e3)) \
                 + WhiteKernel(noise_level=ground_truth.variance)
-            eval_indices, mse_values = learn_gp_fix_kernel(kernel)
+            eval_indices, mse_values = learn_gp_wrapper(kernel, update_theta)
             mse_diffls_plot.append(eval_indices, mse_values, 
                 label="length-scale=%.2e" % length_scale)
 
         mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
-            args.nmin, args.nmax, "mse_diffls")
+            args.nmin, args.nmax, "mse_%s_diffls" % fixed_or_est)
         mse_diffls_plot.save(mse_filename)
 
         # try different variance values
         mse_diffvar_plot = MSEPlot(ground_truth.variance, 
-            title="Learning GP with fixed hyperparameters, length-scale=%.3f" % ground_truth.approx_length_scale)
+            title="Learning GP with %s hyperparameters, length-scale=%.3f" % (fixed_or_est, ground_truth.approx_length_scale))
 
         for variance in ground_truth.variance * np.logspace(-2, 2, 5):
             kernel = RBF(length_scale=ground_truth.approx_length_scale) \
                 + WhiteKernel(noise_level=variance, noise_level_bounds=(1e-10, 1e+1))
-            eval_indices, mse_values = learn_gp_fix_kernel(kernel)
+            eval_indices, mse_values = learn_gp_wrapper(kernel, update_theta)
             mse_diffvar_plot.append(eval_indices, mse_values, 
                 label="variance=%.2e" % variance)
 
         mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
-            args.nmin, args.nmax, "mse_diffvar")
+            args.nmin, args.nmax, "mse_%s_diffvar" % fixed_or_est)
         mse_diffvar_plot.save(mse_filename)
 
-    elif args.mode == 'compare-fixed-seq':
+
+    if args.mode == 'compare-fixed-fixed':
+        # learn GP with different fixed values of theta
+        compare_theta_values(update_theta=False)
+
+    elif args.mode == 'compare-seq-seq':
+        # learn GP with different initial values of theta, which are estimated over time
+        compare_theta_values(update_theta=True)
+
+    elif args.mode == 'compare-seq-fixed':
         # compare GP learning with fixed and estimated theta
         mse_plot = MSEPlot(ground_truth.variance,
             title="Learning GP with initial hyperparameters %s" % default_kernel)
 
-        eval_indices, mse_values = learn_gp_fix_kernel(default_kernel)
+        eval_indices, mse_values = learn_gp_wrapper(default_kernel, update_theta=False)
         mse_plot.append(eval_indices, mse_values, label="fixed")
 
-        eval_indices, mse_values = learn_gp_est_kernel(default_kernel)
+        eval_indices, mse_values = learn_gp_wrapper(default_kernel, update_theta=True)
         mse_plot.append(eval_indices, mse_values, label="estimated")
 
         mse_filename = filename_for(x_selector.name, ground_truth.name, covariate_space.name,
-            args.nmin, args.nmax, "mse_seq_vs_fixed")
+            args.nmin, args.nmax, "mse_estimated_vs_fixed")
         mse_plot.save(mse_filename)
 
     else:
