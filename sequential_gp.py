@@ -218,6 +218,8 @@ def learn_gp(x_selector, kernel, update_theta,
     density_plot = DensityPlot(N_eval_pts)
     if isinstance(x_selector, VarianceMinimizingSelector):
         objective_plot = ObjectivePlot(N_eval_pts)
+    else:
+        objective_plot = None
 
     for i in range(N_init, N_final+1):
         x_star = x_selector.next_x(gp, selector_rng)
