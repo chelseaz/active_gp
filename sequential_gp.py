@@ -4,7 +4,6 @@ import argparse
 import numpy as np
 import os
 import sys
-import time
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
