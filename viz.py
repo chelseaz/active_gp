@@ -29,14 +29,14 @@ class IncrementalPlot():
         plt.close(self.fig) 
 
 
-class MSEPlot(IncrementalPlot):
+class EvalPlot(IncrementalPlot):
     def __init__(self, true_variance, title):
         self.title = title
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
         self.ax.axhline(true_variance, color='r', linewidth=1, linestyle='--')
         
-    def append(self, n_values, mse_values, label):
-        self.ax.plot(n_values, mse_values, label=label, linewidth=2)
+    def append(self, evaluator, label):
+        self.ax.plot(evaluator.eval_indices, evaluator.mse_values, label=label, linewidth=2)
         # TODO: different colors
 
     def complete(self):
@@ -108,6 +108,7 @@ class PosteriorPlot(IncrementalPlot):
 
 
 
+# Deprecated
 # Adapted from http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
 def plot_posterior(gp, X_train, y_train, covariate_space, truth_fn, filename):
     plt.figure(figsize=(10, 6))
@@ -174,6 +175,7 @@ def plot_log_marginal_likelihood(gp, theta_iterates, filename):
     plt.close()
 
 
+# Deprecated
 def plot_mse(all_n, all_mse, true_variance, filename):
     plt.figure()
 
@@ -187,6 +189,7 @@ def plot_mse(all_n, all_mse, true_variance, filename):
     plt.close()
 
 
+# Deprecated
 def plot_density(X, filename):
     plt.figure()
     
