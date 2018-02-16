@@ -32,21 +32,32 @@ class IncrementalPlot():
 class EvalPlot(IncrementalPlot):
     def __init__(self, true_variance, title):
         self.title = title
-        self.fig, self.ax = plt.subplots(figsize=(10, 8))
-        self.ax.axhline(true_variance, color='r', linewidth=1, linestyle='--')
+        self.fig, (self.ax_mse, self.ax_var) = plt.subplots(1, 2, figsize=(12, 6))
+        self.fig.subplots_adjust(wspace = 0.25)
+        # self.handles = []
+        # self.labels = []
+
+        self.ax_mse.axhline(true_variance, color='r', linewidth=1, linestyle='--')
+        self.ax_var.axhline(true_variance, color='r', linewidth=1, linestyle='--')
         
     def append(self, evaluator, label):
-        self.ax.plot(evaluator.eval_indices, evaluator.mse_values, label=label, linewidth=2)
-        # TODO: different colors
+        line, = self.ax_mse.plot(evaluator.eval_indices, evaluator.mse_values, label=label, linewidth=2)
+        self.ax_var.plot(evaluator.eval_indices, evaluator.var_values, label=label, linewidth=2)
+        # self.handles.append(line)
+        # self.labels.append(label)
 
     def complete(self):
-        self.ax.set_yscale("log")
-        self.ax.set_xlabel("Number of training points")
-        self.ax.set_ylabel("MSE of posterior mean")
-        self.ax.set_title(self.title)
-        self.ax.legend()
-        # self.ax.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
-        # self.fig.subplots_adjust(right=0.7)
+        self.ax_mse.set_yscale("log")
+        self.ax_mse.set_xlabel("Number of training points")
+        self.ax_mse.set_ylabel("MSE of posterior mean")
+
+        self.ax_var.set_yscale("log")
+        self.ax_var.set_xlabel("Number of training points")
+        self.ax_var.set_ylabel("Expected posterior predictive variance")
+        self.ax_var.legend()
+
+        self.fig.suptitle(self.title)
+        # self.fig.legend(self.handles, self.labels, loc='center right')
 
 
 class DensityPlot(IncrementalPlot):
