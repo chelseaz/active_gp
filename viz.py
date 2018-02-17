@@ -155,11 +155,10 @@ class PosteriorPlot(IncrementalPlot):
 
         self.init_subplots(n_plots)
 
-    def append(self, gp, X_train, y_train, plot_num):
+    def append(self, plot_num, y_mean, y_cov, X_train, y_train, lml):
         ax = self.get_subplot(plot_num)
 
         # Plot GP posterior
-        y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
         ax.plot(self.X_, y_mean, 'k', lw=2, zorder=9)
         ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
                         y_mean + np.sqrt(np.diag(y_cov)),
@@ -173,10 +172,7 @@ class PosteriorPlot(IncrementalPlot):
         ax.scatter(X_train[-1:, 0], y_train[-1:], c='r', s=30, zorder=11, edgecolors=(0, 0, 0))
         
         ax.set_title("GP posterior with %d training points\nLog-Marginal-Likelihood: %s"
-                     % (X_train.shape[0], gp.log_marginal_likelihood(gp.kernel_.theta)))
-
-        # TODO: compute y_mean, y_cov outside of this class and pass it in
-        return y_mean, y_cov
+                     % (X_train.shape[0], lml))
 
 
 # Deprecated

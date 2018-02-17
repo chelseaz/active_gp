@@ -139,7 +139,10 @@ def learn_gp(x_selector, kernel, update_theta,
         which_eval_index = evaluator.evaluate(i, gp, eval_rng)
         if which_eval_index is not None:
             plot_num = which_eval_index
-            y_mean, y_cov = posterior_plot.append(gp, X, y, plot_num)
+            y_mean, y_cov = gp.predict(posterior_plot.X__matrix, return_cov=True)
+            lml = gp.log_marginal_likelihood(gp.kernel_.theta)
+
+            posterior_plot.append(plot_num, y_mean, y_cov, X, y, lml)
             posterior_animation.append(i, y_mean, y_cov)
 
             density_plot.append(X, plot_num)
