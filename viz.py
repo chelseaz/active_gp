@@ -4,8 +4,66 @@ import numpy as np
 import seaborn as sns
 
 from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
 from matplotlib.colors import LogNorm
 from operator import itemgetter
+
+
+class IncrementalAnimation():
+    def update_anim(self, iterate):
+        raise NotImplementedError
+
+    def save(self, filename, figsize=(8,6)):
+        self.fig, self.ax = plt.subplots(figsize=figsize)
+        anim = FuncAnimation(self.fig, self.update_anim, frames=self.iterates, init_func=self.init_anim,
+            interval=1e3)
+        anim.save(filename, dpi=80, writer='imagemagick')
+
+
+class PosteriorAnimation(IncrementalAnimation):
+    def __init__(self, point_size=20):
+        self.iterates = []
+        self.point_size=point_size
+
+    def append(self, n_points, y_mean, y_cov):
+        self.iterates.append((n_points, y_mean, y_cov))
+
+    def set_quantities(self, X_train, y_train, X_, y_truth):
+        self.X_train = X_train
+        self.y_train = y_train
+        self.X_ = X_
+        self.y_truth = y_truth
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        self.ax.set_title("GP posterior")
+        self.ax.plot(self.X_, self.y_truth, 'r', lw=2, zorder=9)
+        self.posterior_mean, = self.ax.plot([], [], 'k', lw=2, zorder=9)
+        self.posterior_interval = self.ax.fill_between([], [], [])
+        self.points = self.ax.scatter(self.X_train, self.y_train, 
+            s=np.zeros(self.y_train.size), c='k', edgecolors='k', zorder=10)
+        self.label = self.ax.text(0.05, 0.05, '', transform=self.ax.transAxes)
+        return self.posterior_mean, self.posterior_interval, self.points, self.label
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points, y_mean, y_cov = iterate
+        total_n_points = self.y_train.size
+        self.posterior_mean.set_data(self.X_, y_mean)
+        self.posterior_interval.remove()
+        self.posterior_interval = self.ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
+            y_mean + np.sqrt(np.diag(y_cov)), alpha=0.5, color='k')
+
+        point_sizes = [self.point_size] * (n_points-1) \
+            + [self.point_size*2] \
+            + [0] * (total_n_points-n_points)
+        point_colors = ['k'] * total_n_points
+        point_colors[n_points-1] = 'r'  # draw current point in red
+
+        self.points.set_sizes(point_sizes)
+        self.points.set_facecolors(point_colors)
+        self.label.set_text("%d points" % n_points)
+        return self.posterior_mean, self.posterior_interval, self.points, self.label
 
 
 class IncrementalPlot():
@@ -117,6 +175,8 @@ class PosteriorPlot(IncrementalPlot):
         ax.set_title("GP posterior with %d training points\nLog-Marginal-Likelihood: %s"
                      % (X_train.shape[0], gp.log_marginal_likelihood(gp.kernel_.theta)))
 
+        # TODO: compute y_mean, y_cov outside of this class and pass it in
+        return y_mean, y_cov
 
 
 # Deprecated

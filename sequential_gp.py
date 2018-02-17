@@ -9,12 +9,12 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 
 from evaluate import Evaluator
-from select import RandomSelector, VarianceMinimizingSelector
+from selection import RandomSelector, VarianceMinimizingSelector
 from viz import *
 
 fig_prefix = "figs/"
 
-def filename_for(strategy, update_theta, ground_truth, covariate_space, N_init, N_final, custom):
+def filename_for(strategy, update_theta, ground_truth, covariate_space, N_init, N_final, custom, extension="png"):
     if update_theta is None:
         fixed_or_est = "both"
     elif update_theta:
@@ -22,8 +22,8 @@ def filename_for(strategy, update_theta, ground_truth, covariate_space, N_init, 
     else:
         fixed_or_est = "fixed"
 
-    return fig_prefix + "%s_%s_%s_%s_%s_%d_%d.png" % \
-        (ground_truth, covariate_space, strategy, fixed_or_est, custom, N_init, N_final)
+    return fig_prefix + "%s_%s_%s_%s_%s_%d_%d.%s" % \
+        (ground_truth, covariate_space, strategy, fixed_or_est, custom, N_init, N_final, extension)
 
 def kernel_to_str(kernel):
     return '_'.join(map(lambda f: "%.2e" % f, np.exp(kernel.theta)))
@@ -113,6 +113,7 @@ def learn_gp(x_selector, kernel, update_theta,
     evaluator = Evaluator(covariate_space, ground_truth, N_init, N_final, N_eval_pts)
 
     posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
+    posterior_animation = PosteriorAnimation()
     density_plot = DensityPlot(N_eval_pts)
     if isinstance(x_selector, VarianceMinimizingSelector):
         objective_plot = ObjectivePlot(N_eval_pts)
@@ -138,15 +139,19 @@ def learn_gp(x_selector, kernel, update_theta,
         which_eval_index = evaluator.evaluate(i, gp, eval_rng)
         if which_eval_index is not None:
             plot_num = which_eval_index
-            posterior_plot.append(gp, X, y, plot_num)
+            y_mean, y_cov = posterior_plot.append(gp, X, y, plot_num)
+            posterior_animation.append(i, y_mean, y_cov)
+
             density_plot.append(X, plot_num)
             if objective_plot is not None:
                 objective_plot.append(x_selector, plot_num, n_points=i)
 
     print "Final kernel: ", gp.kernel_
 
-    gen_filename = lambda fig_type: filename_for(x_selector.name, update_theta,
-        ground_truth.name, covariate_space.name, N_init, N_final, fig_type)
+    def gen_filename(fig_type, extension="png"): 
+        return filename_for(x_selector.name, update_theta, ground_truth.name, covariate_space.name, 
+            N_init, N_final, fig_type, extension=extension)
+
     kernel_str = kernel_to_str(kernel)
 
     posterior_plot.save(gen_filename("posterior_" + kernel_str))
@@ -159,10 +164,10 @@ def learn_gp(x_selector, kernel, update_theta,
         eval_plot = EvalPlot(ground_truth.variance,
             title="Learning GP with initial hyperparameters %s" % kernel)
         eval_plot.append(evaluator, label="estimated")
-        eval_filename = filename_for(x_selector.name, update_theta,
-            ground_truth.name, covariate_space.name,
-            args.nmin, args.nmax, "eval_" + kernel_str)
-        eval_plot.save(eval_filename)
+        eval_plot.save(gen_filename("eval_" + kernel_str))
+
+    posterior_animation.set_quantities(X, y, posterior_plot.X_, posterior_plot.y_truth)
+    posterior_animation.save(gen_filename("posterior_" + kernel_str, extension="gif"))
 
     return evaluator
 
@@ -178,7 +183,7 @@ if __name__ == "__main__":
     parser.add_argument('--ground-truth', choices=ground_truths.keys(), required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
-    parser.add_argument('--n_eval_pts', type=int, default=12)
+    parser.add_argument('--n-eval-pts', type=int, default=12)
     parser.add_argument('--random-seed', type=int, default=123)
     args = parser.parse_args()
 
