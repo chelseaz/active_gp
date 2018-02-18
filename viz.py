@@ -8,6 +8,8 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.colors import LogNorm
 from operator import itemgetter
 
+import config
+
 
 class IncrementalAnimation(object):
     def __init__(self):
@@ -31,8 +33,11 @@ class IncrementalAnimation(object):
 class LMLAnimation(IncrementalAnimation):
     def __init__(self):
         super(LMLAnimation, self).__init__()
-        theta0 = np.logspace(-2, 3, 49)
-        theta1 = np.logspace(-3, 0, 50)
+
+        theta0_min, theta0_max = np.log10(config.length_scale_bounds)
+        theta1_min, theta1_max = np.log10(config.noise_level_bounds)
+        theta0 = np.logspace(theta0_min, theta0_max, 49)
+        theta1 = np.logspace(theta1_min, theta1_max, 50)
         self.Theta0, self.Theta1 = np.meshgrid(theta0, theta1)
 
     def append(self, n_points, gp, theta):

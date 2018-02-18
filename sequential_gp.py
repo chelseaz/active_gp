@@ -8,6 +8,7 @@ import sys
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 
+import config
 from evaluate import Evaluator
 from selection import RandomSelector, VarianceMinimizingSelector
 from viz import *
@@ -27,65 +28,6 @@ def filename_for(strategy, update_theta, ground_truth, covariate_space, N_init, 
 
 def kernel_to_str(kernel):
     return '_'.join(map(lambda f: "%.2e" % f, np.exp(kernel.theta)))
-
-
-class UniformCovariateSpace():
-    def __init__(self, xmin, xmax):
-        self.xmin = xmin
-        self.xmax = xmax
-        self.name = 'uniform'
-
-    def sample(self, n, rng):
-        return rng.uniform(self.xmin, self.xmax, n)
-
-
-class GaussianCovariateSpace():
-    def __init__(self, loc, scale):
-        self.loc = loc
-        self.scale = scale
-        self.xmin = -3*scale
-        self.xmax = 3*scale
-        self.name = 'gaussian'
-
-    def sample(self, n, rng):
-        return rng.normal(self.loc, self.scale, n)
-
-
-class GroundTruth():
-    # mean_fn takes in a numpy array and returns a scalar output
-    # noise_fn takes in a random state and returns a scalar output
-    def __init__(self, variance, mean_fn, noise_fn, name):
-        self.variance = variance
-        self.mean_fn = mean_fn
-        self.noise_fn = noise_fn
-        self.name = name
-        self.observe_y_fn = lambda x, rng: mean_fn(x) + noise_fn(rng)
-
-        # TODO: calculate this programmatically
-        # hardcoded for the low_freq_sinusoid based on sequential version with 1000 pts
-        self.approx_length_scale = 0.334
-
-
-covariate_spaces = {
-    'uniform': UniformCovariateSpace(xmin = -1.0, xmax = 1.0),
-    'gaussian': GaussianCovariateSpace(loc = 0, scale = 1.0/3)
-}
-
-# Adapted from scikit-learn GP example
-# http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
-ground_truths = {
-    'high_freq_sinusoid': GroundTruth(
-        variance = 0.25,
-        mean_fn = lambda x: np.sin(3 * 2 * np.pi * x[0]),
-        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
-        name = 'sin_freq_3_noise_0.25'),
-    'low_freq_sinusoid': GroundTruth(
-        variance = 0.25,
-        mean_fn = lambda x: np.sin(1 * 2 * np.pi * x[0]),
-        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
-        name = 'sin_freq_1_noise_0.25')
-}
-
 
 
 def learn_gp(x_selector, kernel, update_theta,
@@ -180,8 +122,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', choices=['seq', 'compare-seq-fixed', 'compare-seq-seq', 'compare-fixed-fixed'], default='seq')
     parser.add_argument('--strategy', choices=['random', 'varmin'], required=True)
-    parser.add_argument('--covariate-space', choices=covariate_spaces.keys(), required=True)
-    parser.add_argument('--ground-truth', choices=ground_truths.keys(), required=True)
+    parser.add_argument('--covariate-space', choices=config.covariate_spaces.keys(), required=True)
+    parser.add_argument('--ground-truth', choices=config.ground_truths.keys(), required=True)
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
     parser.add_argument('--n-eval-pts', type=int, default=12)
@@ -191,8 +133,8 @@ if __name__ == "__main__":
     if not os.path.exists(fig_prefix):
         os.makedirs(fig_prefix)
 
-    covariate_space = covariate_spaces[args.covariate_space]
-    ground_truth = ground_truths[args.ground_truth]
+    covariate_space = config.covariate_spaces[args.covariate_space]
+    ground_truth = config.ground_truths[args.ground_truth]
 
     # make these wrappers to standardize the random number generator across runs
     create_selector_rng = lambda: np.random.RandomState(args.random_seed)
@@ -204,8 +146,8 @@ if __name__ == "__main__":
     elif args.strategy == 'varmin':
         x_selector = VarianceMinimizingSelector(covariate_space)
 
-    default_kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
-        + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-10, 1e+1))
+    default_kernel = RBF(length_scale=1.0, length_scale_bounds=config.length_scale_bounds) \
+        + WhiteKernel(noise_level=1.0, noise_level_bounds=config.noise_level_bounds)
 
     def learn_gp_wrapper(kernel, update_theta, plot_all=False):
         return learn_gp(
@@ -231,7 +173,7 @@ if __name__ == "__main__":
             title="Learning GP with %s hyperparameters, variance=%.3f" % (fixed_or_est, ground_truth.variance))
 
         for length_scale in ground_truth.approx_length_scale * np.logspace(-1, 1, 9):
-            kernel = RBF(length_scale=length_scale, length_scale_bounds=(1e-2, 1e3)) \
+            kernel = RBF(length_scale=length_scale, length_scale_bounds=config.length_scale_bounds) \
                 + WhiteKernel(noise_level=ground_truth.variance)
             evaluator = learn_gp_wrapper(kernel, update_theta)
             eval_diffls_plot.append(evaluator, label="length-scale=%.2e" % length_scale)
@@ -247,7 +189,7 @@ if __name__ == "__main__":
 
         for variance in ground_truth.variance * np.logspace(-2, 2, 5):
             kernel = RBF(length_scale=ground_truth.approx_length_scale) \
-                + WhiteKernel(noise_level=variance, noise_level_bounds=(1e-10, 1e+1))
+                + WhiteKernel(noise_level=variance, noise_level_bounds=config.noise_level_bounds)
             evaluator = learn_gp_wrapper(kernel, update_theta)
             eval_diffvar_plot.append(evaluator, label="variance=%.2e" % variance)
 
