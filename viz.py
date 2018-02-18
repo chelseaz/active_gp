@@ -9,7 +9,15 @@ from matplotlib.colors import LogNorm
 from operator import itemgetter
 
 
-class IncrementalAnimation():
+class IncrementalAnimation(object):
+    def __init__(self):
+        self.iterates = []
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        raise NotImplementedError
+
+    # assumes save has been called, so self.fig and self.ax are defined
     def update_anim(self, iterate):
         raise NotImplementedError
 
@@ -20,10 +28,78 @@ class IncrementalAnimation():
         anim.save(filename, dpi=80, writer='imagemagick')
 
 
+class LMLAnimation(IncrementalAnimation):
+    def __init__(self):
+        super(LMLAnimation, self).__init__()
+        theta0 = np.logspace(-2, 3, 49)
+        theta1 = np.logspace(-3, 0, 50)
+        self.Theta0, self.Theta1 = np.meshgrid(theta0, theta1)
+
+    def append(self, n_points, gp, theta):
+        LML = [[gp.log_marginal_likelihood(np.log([self.Theta0[i, j], self.Theta1[i, j]]))
+            for i in range(self.Theta0.shape[0])] for j in range(self.Theta0.shape[1])]
+        LML = np.array(LML).T
+        self.iterates.append((n_points, LML, theta))
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        self.ax.set_xscale("log")
+        self.ax.set_yscale("log")
+        self.ax.set_xlabel("Length-scale")
+        self.ax.set_ylabel("Noise level")
+        self.ax.set_title("Negative log marginal likelihood")
+
+        self.fig.subplots_adjust(right = 0.8)
+        self.cbar_ax = self.fig.add_axes([0.83, 0.1, 0.03, 0.8])
+
+        self.theta_iterates, = self.ax.plot(np.empty(0), np.empty(0), 'k-', linewidth=1)
+        self.current_theta = None
+        # return self.theta_iterates,
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points, LML, (theta0, theta1) = iterate
+
+        # contour plot requires positive values
+        # If necessary, subtract a constant from log likelihoods so all are negative
+        # Then negate log likelihoods
+        LML = LML - max(LML.max()+10, 0)
+        vmin, vmax = (-LML).min(), (-LML).max()
+        # print "vmin:", vmin, "vmax:", vmax
+        # # set vmax to weighted geometric mean
+        # vmax = np.exp(0.5*np.log(vmin) + 0.5*np.log(vmax))
+
+        level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 50), decimals=1)
+        norm = LogNorm(vmin=vmin, vmax=vmax)
+
+        # can't mutate existing contours, so remove them and plot new ones
+        self.ax.collections = []
+        contours = self.ax.contour(self.Theta0, self.Theta1, -LML, levels=level, norm=norm)
+
+        # hackily, we need to remove and create the colorbar every time inside set axes
+        # otherwise creating a new colorbar would eat away at the remaining space
+        # however, calling remove() on the colorbar incurs a KeyError, so we need to 
+        # remove and create the containing axes every time
+        self.cbar_ax.remove()
+        self.cbar_ax = self.fig.add_axes([0.83, 0.1, 0.03, 0.8]) 
+        self.fig.colorbar(contours, cax=self.cbar_ax)
+
+        self.theta_iterates.set_data(
+            np.append(self.theta_iterates.get_xdata(), theta0),
+            np.append(self.theta_iterates.get_ydata(), theta1)
+        )
+
+        if self.current_theta is None:
+            self.current_theta, = self.ax.plot([theta0], [theta1], 'ro', markeredgecolor='k')
+        else:
+            self.current_theta.set_data([theta0], [theta1])
+        # return self.theta_iterates,
+
+
 class PosteriorAnimation(IncrementalAnimation):
     def __init__(self, point_size=20):
-        self.iterates = []
-        self.point_size=point_size
+        super(PosteriorAnimation, self).__init__()
+        self.point_size = point_size
 
     def append(self, n_points, y_mean, y_cov):
         self.iterates.append((n_points, y_mean, y_cov))
@@ -43,13 +119,15 @@ class PosteriorAnimation(IncrementalAnimation):
         self.points = self.ax.scatter(self.X_train, self.y_train, 
             s=np.zeros(self.y_train.size), c='k', edgecolors='k', zorder=10)
         self.label = self.ax.text(0.05, 0.05, '', transform=self.ax.transAxes)
-        return self.posterior_mean, self.posterior_interval, self.points, self.label
+        # return self.posterior_mean, self.posterior_interval, self.points, self.label
 
     # assumes save has been called, so self.fig and self.ax are defined
     def update_anim(self, iterate):
         n_points, y_mean, y_cov = iterate
         total_n_points = self.y_train.size
         self.posterior_mean.set_data(self.X_, y_mean)
+
+        # can't easily mutate existing posterior interval, so remove it and plot a new one
         self.posterior_interval.remove()
         self.posterior_interval = self.ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
             y_mean + np.sqrt(np.diag(y_cov)), alpha=0.5, color='k')
@@ -63,10 +141,10 @@ class PosteriorAnimation(IncrementalAnimation):
         self.points.set_sizes(point_sizes)
         self.points.set_facecolors(point_colors)
         self.label.set_text("%d points" % n_points)
-        return self.posterior_mean, self.posterior_interval, self.points, self.label
+        # return self.posterior_mean, self.posterior_interval, self.points, self.label
 
 
-class IncrementalPlot():
+class IncrementalPlot(object):
     def complete(self):
         pass
 
@@ -203,6 +281,7 @@ def plot_posterior(gp, X_train, y_train, covariate_space, truth_fn, filename):
     plt.close()
 
 
+# Deprecated
 # Adapted from http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gpr_noisy.html
 def plot_log_marginal_likelihood(gp, theta_iterates, filename):
     plt.figure()

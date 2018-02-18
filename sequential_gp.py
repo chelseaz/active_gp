@@ -114,6 +114,7 @@ def learn_gp(x_selector, kernel, update_theta,
 
     posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
     posterior_animation = PosteriorAnimation()
+    lml_animation = LMLAnimation()
     density_plot = DensityPlot(N_eval_pts)
     if isinstance(x_selector, VarianceMinimizingSelector):
         objective_plot = ObjectivePlot(N_eval_pts)
@@ -133,9 +134,6 @@ def learn_gp(x_selector, kernel, update_theta,
         # update hyperparameters
         gp.fit(X, y)
 
-        theta_iterates = np.vstack([theta_iterates, np.exp(gp.kernel_.theta)])
-        # should only track theta_iterates at eval_indices?
-
         which_eval_index = evaluator.evaluate(i, gp, eval_rng)
         if which_eval_index is not None:
             plot_num = which_eval_index
@@ -144,7 +142,7 @@ def learn_gp(x_selector, kernel, update_theta,
 
             posterior_plot.append(plot_num, y_mean, y_cov, X, y, lml)
             posterior_animation.append(i, y_mean, y_cov)
-
+            lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
             density_plot.append(X, plot_num)
             if objective_plot is not None:
                 objective_plot.append(x_selector, plot_num, n_points=i)
@@ -162,8 +160,6 @@ def learn_gp(x_selector, kernel, update_theta,
     if objective_plot is not None:
         objective_plot.save(gen_filename("objective_" + kernel_str))
     if plot_all:
-        plot_log_marginal_likelihood(gp, theta_iterates, gen_filename("lml_" + kernel_str))
-
         eval_plot = EvalPlot(ground_truth.variance,
             title="Learning GP with initial hyperparameters %s" % kernel)
         eval_plot.append(evaluator, label="estimated")
@@ -171,6 +167,8 @@ def learn_gp(x_selector, kernel, update_theta,
 
     posterior_animation.set_quantities(X, y, posterior_plot.X_, posterior_plot.y_truth)
     posterior_animation.save(gen_filename("posterior_" + kernel_str, extension="gif"))
+
+    lml_animation.save(gen_filename("lml_" + kernel_str, extension="gif"))
 
     return evaluator
 
