@@ -30,28 +30,6 @@ class IncrementalAnimation(object):
         anim.save(filename, dpi=80, writer='imagemagick')
 
 
-class DensityAnimation(IncrementalAnimation):
-    def __init__(self):
-        super(DensityAnimation, self).__init__()
-
-    def append(self, n_points):
-        self.iterates.append(n_points)
-
-    def set_quantities(self, X_train):
-        self.X_train = X_train
-
-    # assumes save has been called, so self.fig and self.ax are defined
-    def init_anim(self):
-        pass
-
-    # assumes save has been called, so self.fig and self.ax are defined
-    def update_anim(self, iterate):
-        n_points = iterate
-        self.ax.clear()
-        sns.distplot(self.X_train[:n_points, 0], rug=True, ax=self.ax)
-        self.ax.set_title("Histogram of first %d training points" % n_points)
-
-
 class PosteriorAnimation(IncrementalAnimation):
     def __init__(self, point_size=20):
         super(PosteriorAnimation, self).__init__()
@@ -68,7 +46,6 @@ class PosteriorAnimation(IncrementalAnimation):
 
     # assumes save has been called, so self.fig and self.ax are defined
     def init_anim(self):
-        self.ax.set_title("GP posterior")
         self.ax.plot(self.X_, self.y_truth, 'r', lw=2, zorder=9)
         self.posterior_mean, = self.ax.plot([], [], 'k', lw=2, zorder=9)
         self.posterior_interval = self.ax.fill_between([], [], [])
@@ -100,6 +77,54 @@ class PosteriorAnimation(IncrementalAnimation):
         # return self.posterior_mean, self.posterior_interval, self.points
 
 
+class DensityAnimation(IncrementalAnimation):
+    def __init__(self):
+        super(DensityAnimation, self).__init__()
+
+    def append(self, n_points):
+        self.iterates.append(n_points)
+
+    def set_quantities(self, X_train):
+        self.X_train = X_train
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        pass
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points = iterate
+        self.ax.clear()
+        sns.distplot(self.X_train[:n_points, 0], rug=True, ax=self.ax)
+        self.ax.set_title("Histogram of first %d training points" % n_points)
+
+
+class ObjectiveAnimation(IncrementalAnimation):
+    def __init__(self, xlim):
+        super(ObjectiveAnimation, self).__init__()
+        self.xlim = xlim
+
+    def append(self, n_points, x, y, argmax_index):
+        self.iterates.append((n_points, x, y, argmax_index))
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        self.ax.set_xlim(self.xlim)
+        self.ax.set_ylabel("Variance reduction")
+        self.objective, = self.ax.plot([], [], 'ko', markersize=5)
+        self.objective_max, = self.ax.plot([], [], 'ro', markersize=10, markeredgecolor='k')
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points, x, y, argmax_index = iterate
+        self.objective.set_data(x, y)
+        self.objective_max.set_data([x[argmax_index]], [y[argmax_index]])
+        # recompute and update y-axis limits
+        self.ax.relim()
+        self.ax.autoscale_view(scalex=False)
+        self.ax.set_title("Selection of training point %d" % n_points)
+
+
 class LMLAnimation(IncrementalAnimation):
     def __init__(self):
         super(LMLAnimation, self).__init__()
@@ -128,7 +153,7 @@ class LMLAnimation(IncrementalAnimation):
         self.cbar_ax = self.fig.add_axes([0.83, 0.1, 0.03, 0.8])
 
         self.theta_iterates, = self.ax.plot(np.empty(0), np.empty(0), 'k-', linewidth=1)
-        self.current_theta = None
+        self.current_theta, = self.ax.plot([], [], 'ro', markeredgecolor='k')
         # return self.theta_iterates,
 
     # assumes save has been called, so self.fig and self.ax are defined
@@ -160,11 +185,7 @@ class LMLAnimation(IncrementalAnimation):
             np.append(self.theta_iterates.get_xdata(), theta0),
             np.append(self.theta_iterates.get_ydata(), theta1)
         )
-
-        if self.current_theta is None:
-            self.current_theta, = self.ax.plot([theta0], [theta1], 'ro', markeredgecolor='k')
-        else:
-            self.current_theta.set_data([theta0], [theta1])
+        self.current_theta.set_data([theta0], [theta1])
 
         self.ax.set_title("Negative log marginal likelihood, %d points" % n_points)
         # return self.theta_iterates,
@@ -236,12 +257,8 @@ class ObjectivePlot(IncrementalPlot):
     def __init__(self, n_plots):
         self.init_subplots(n_plots)
 
-    def append(self, selector, plot_num, n_points):
+    def append(self, plot_num, x, y, argmax_index, n_points):
         ax = self.get_subplot(plot_num)
-
-        x = selector.all_x_star[:,0]
-        y = selector.avg_var_delta
-        argmax_index = selector.x_star_index
 
         ax.scatter(x, y, c='k', s=10)
         # highlight the argmax

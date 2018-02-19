@@ -61,8 +61,10 @@ def learn_gp(x_selector, kernel, update_theta,
     density_animation = DensityAnimation()
     if isinstance(x_selector, VarianceMinimizingSelector):
         objective_plot = ObjectivePlot(N_eval_pts)
+        objective_animation = ObjectiveAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
     else:
         objective_plot = None
+        objective_animation = None
 
     for i in range(N_init, N_final+1):
         x_star = x_selector.next_x(gp, selector_rng)
@@ -88,8 +90,13 @@ def learn_gp(x_selector, kernel, update_theta,
             lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
             density_plot.append(X, plot_num)
             density_animation.append(i)
+
             if objective_plot is not None:
-                objective_plot.append(x_selector, plot_num, n_points=i)
+                objective_plot.append(plot_num, x_selector.all_x_star[:,0], 
+                    x_selector.avg_var_delta, x_selector.x_star_index, n_points=i)
+            if objective_animation is not None:
+                objective_animation.append(i, x_selector.all_x_star[:,0], 
+                    x_selector.avg_var_delta, x_selector.x_star_index)
 
     print "Final kernel: ", gp.kernel_
 
@@ -116,6 +123,9 @@ def learn_gp(x_selector, kernel, update_theta,
 
     density_animation.set_quantities(X)
     density_animation.save(gen_filename("training_density_" + kernel_str, extension="gif"))
+
+    if objective_animation is not None:
+        objective_animation.save(gen_filename("objective_" + kernel_str, extension="gif"))
 
     return evaluator
 
