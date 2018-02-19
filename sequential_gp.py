@@ -58,6 +58,7 @@ def learn_gp(x_selector, kernel, update_theta,
     posterior_animation = PosteriorAnimation()
     lml_animation = LMLAnimation()
     density_plot = DensityPlot(N_eval_pts)
+    density_animation = DensityAnimation()
     if isinstance(x_selector, VarianceMinimizingSelector):
         objective_plot = ObjectivePlot(N_eval_pts)
     else:
@@ -86,6 +87,7 @@ def learn_gp(x_selector, kernel, update_theta,
             posterior_animation.append(i, y_mean, y_cov)
             lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
             density_plot.append(X, plot_num)
+            density_animation.append(i)
             if objective_plot is not None:
                 objective_plot.append(x_selector, plot_num, n_points=i)
 
@@ -111,6 +113,9 @@ def learn_gp(x_selector, kernel, update_theta,
     posterior_animation.save(gen_filename("posterior_" + kernel_str, extension="gif"))
 
     lml_animation.save(gen_filename("lml_" + kernel_str, extension="gif"))
+
+    density_animation.set_quantities(X)
+    density_animation.save(gen_filename("training_density_" + kernel_str, extension="gif"))
 
     return evaluator
 

@@ -30,6 +30,76 @@ class IncrementalAnimation(object):
         anim.save(filename, dpi=80, writer='imagemagick')
 
 
+class DensityAnimation(IncrementalAnimation):
+    def __init__(self):
+        super(DensityAnimation, self).__init__()
+
+    def append(self, n_points):
+        self.iterates.append(n_points)
+
+    def set_quantities(self, X_train):
+        self.X_train = X_train
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        pass
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points = iterate
+        self.ax.clear()
+        sns.distplot(self.X_train[:n_points, 0], rug=True, ax=self.ax)
+        self.ax.set_title("Histogram of first %d training points" % n_points)
+
+
+class PosteriorAnimation(IncrementalAnimation):
+    def __init__(self, point_size=20):
+        super(PosteriorAnimation, self).__init__()
+        self.point_size = point_size
+
+    def append(self, n_points, y_mean, y_cov):
+        self.iterates.append((n_points, y_mean, y_cov))
+
+    def set_quantities(self, X_train, y_train, X_, y_truth):
+        self.X_train = X_train
+        self.y_train = y_train
+        self.X_ = X_
+        self.y_truth = y_truth
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        self.ax.set_title("GP posterior")
+        self.ax.plot(self.X_, self.y_truth, 'r', lw=2, zorder=9)
+        self.posterior_mean, = self.ax.plot([], [], 'k', lw=2, zorder=9)
+        self.posterior_interval = self.ax.fill_between([], [], [])
+        self.points = self.ax.scatter(self.X_train, self.y_train, 
+            s=np.zeros(self.y_train.size), c='k', edgecolors='k', zorder=10)
+        # return self.posterior_mean, self.posterior_interval, self.points
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points, y_mean, y_cov = iterate
+        total_n_points = self.y_train.size
+        self.posterior_mean.set_data(self.X_, y_mean)
+
+        # can't easily mutate existing posterior interval, so remove it and plot a new one
+        self.posterior_interval.remove()
+        self.posterior_interval = self.ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
+            y_mean + np.sqrt(np.diag(y_cov)), alpha=0.5, color='k')
+
+        point_sizes = [self.point_size] * (n_points-1) \
+            + [self.point_size*2] \
+            + [0] * (total_n_points-n_points)
+        point_colors = ['k'] * total_n_points
+        point_colors[n_points-1] = 'r'  # draw current point in red
+
+        self.points.set_sizes(point_sizes)
+        self.points.set_facecolors(point_colors)
+
+        self.ax.set_title("GP posterior, %d points" % n_points)
+        # return self.posterior_mean, self.posterior_interval, self.points
+
+
 class LMLAnimation(IncrementalAnimation):
     def __init__(self):
         super(LMLAnimation, self).__init__()
@@ -81,12 +151,9 @@ class LMLAnimation(IncrementalAnimation):
         self.ax.collections = []
         contours = self.ax.contour(self.Theta0, self.Theta1, -LML, levels=level, norm=norm)
 
-        # hackily, we need to remove and create the colorbar every time inside set axes
+        # we need to remove and create the colorbar every time inside set axes
         # otherwise creating a new colorbar would eat away at the remaining space
-        # however, calling remove() on the colorbar incurs a KeyError, so we need to 
-        # remove and create the containing axes every time
-        self.cbar_ax.remove()
-        self.cbar_ax = self.fig.add_axes([0.83, 0.1, 0.03, 0.8]) 
+        self.cbar_ax.clear()
         self.fig.colorbar(contours, cax=self.cbar_ax)
 
         self.theta_iterates.set_data(
@@ -98,55 +165,9 @@ class LMLAnimation(IncrementalAnimation):
             self.current_theta, = self.ax.plot([theta0], [theta1], 'ro', markeredgecolor='k')
         else:
             self.current_theta.set_data([theta0], [theta1])
+
+        self.ax.set_title("Negative log marginal likelihood, %d points" % n_points)
         # return self.theta_iterates,
-
-
-class PosteriorAnimation(IncrementalAnimation):
-    def __init__(self, point_size=20):
-        super(PosteriorAnimation, self).__init__()
-        self.point_size = point_size
-
-    def append(self, n_points, y_mean, y_cov):
-        self.iterates.append((n_points, y_mean, y_cov))
-
-    def set_quantities(self, X_train, y_train, X_, y_truth):
-        self.X_train = X_train
-        self.y_train = y_train
-        self.X_ = X_
-        self.y_truth = y_truth
-
-    # assumes save has been called, so self.fig and self.ax are defined
-    def init_anim(self):
-        self.ax.set_title("GP posterior")
-        self.ax.plot(self.X_, self.y_truth, 'r', lw=2, zorder=9)
-        self.posterior_mean, = self.ax.plot([], [], 'k', lw=2, zorder=9)
-        self.posterior_interval = self.ax.fill_between([], [], [])
-        self.points = self.ax.scatter(self.X_train, self.y_train, 
-            s=np.zeros(self.y_train.size), c='k', edgecolors='k', zorder=10)
-        self.label = self.ax.text(0.05, 0.05, '', transform=self.ax.transAxes)
-        # return self.posterior_mean, self.posterior_interval, self.points, self.label
-
-    # assumes save has been called, so self.fig and self.ax are defined
-    def update_anim(self, iterate):
-        n_points, y_mean, y_cov = iterate
-        total_n_points = self.y_train.size
-        self.posterior_mean.set_data(self.X_, y_mean)
-
-        # can't easily mutate existing posterior interval, so remove it and plot a new one
-        self.posterior_interval.remove()
-        self.posterior_interval = self.ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
-            y_mean + np.sqrt(np.diag(y_cov)), alpha=0.5, color='k')
-
-        point_sizes = [self.point_size] * (n_points-1) \
-            + [self.point_size*2] \
-            + [0] * (total_n_points-n_points)
-        point_colors = ['k'] * total_n_points
-        point_colors[n_points-1] = 'r'  # draw current point in red
-
-        self.points.set_sizes(point_sizes)
-        self.points.set_facecolors(point_colors)
-        self.label.set_text("%d points" % n_points)
-        # return self.posterior_mean, self.posterior_interval, self.points, self.label
 
 
 class IncrementalPlot(object):
