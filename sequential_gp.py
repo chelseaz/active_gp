@@ -33,7 +33,7 @@ def kernel_to_str(kernel):
 def learn_gp(x_selector, kernel, update_theta,
              covariate_space, ground_truth, 
              selector_rng, obs_rng, eval_rng, 
-             N_init, N_final, N_eval_pts, plot_all):
+             N_init, N_final, N_eval_pts, animate):
     
     print "\nLearning GP"
     print "Initial kernel: ", kernel
@@ -50,21 +50,22 @@ def learn_gp(x_selector, kernel, update_theta,
 
     gp.fit(X, y)
 
-    theta_iterates = np.empty((0,kernel.theta.size))
-
     evaluator = Evaluator(covariate_space, ground_truth, N_init, N_final, N_eval_pts)
 
-    posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
-    posterior_animation = PosteriorAnimation()
-    lml_animation = LMLAnimation()
-    density_plot = DensityPlot(N_eval_pts)
-    density_animation = DensityAnimation()
-    if isinstance(x_selector, VarianceMinimizingSelector):
-        objective_plot = ObjectivePlot(N_eval_pts)
-        objective_animation = ObjectiveAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
-    else:
-        objective_plot = None
+    # Initialize all plots
+    if animate:
+        posterior_animation = PosteriorAnimation(covariate_space, ground_truth.mean_fn)
+        lml_animation = LMLAnimation()
+        density_animation = DensityAnimation()
         objective_animation = None
+        if isinstance(x_selector, VarianceMinimizingSelector):
+            objective_animation = ObjectiveAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
+    else:
+        posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
+        density_plot = DensityPlot(N_eval_pts)
+        objective_plot = None
+        if isinstance(x_selector, VarianceMinimizingSelector):
+            objective_plot = ObjectivePlot(N_eval_pts)
 
     for i in range(N_init, N_final+1):
         x_star = x_selector.next_x(gp, selector_rng)
@@ -82,50 +83,49 @@ def learn_gp(x_selector, kernel, update_theta,
         which_eval_index = evaluator.evaluate(i, gp, eval_rng)
         if which_eval_index is not None:
             plot_num = which_eval_index
-            y_mean, y_cov = gp.predict(posterior_plot.X__matrix, return_cov=True)
-            lml = gp.log_marginal_likelihood(gp.kernel_.theta)
 
-            posterior_plot.append(plot_num, y_mean, y_cov, X, y, lml)
-            posterior_animation.append(i, y_mean, y_cov)
-            lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
-            density_plot.append(X, plot_num)
-            density_animation.append(i)
+            # Update all plots
+            if animate:
+                posterior_animation.append(i, gp, X, y)
+                lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
+                density_animation.append(i, X)
+                if objective_animation is not None:
+                    objective_animation.append(i, x_selector)
+            else:
+                posterior_plot.append(plot_num, gp, X, y)
+                density_plot.append(plot_num, X)
+                if objective_plot is not None:
+                    objective_plot.append(plot_num, x_selector, n_points=i)
 
-            if objective_plot is not None:
-                objective_plot.append(plot_num, x_selector.all_x_star[:,0], 
-                    x_selector.avg_var_delta, x_selector.x_star_index, n_points=i)
-            if objective_animation is not None:
-                objective_animation.append(i, x_selector.all_x_star[:,0], 
-                    x_selector.avg_var_delta, x_selector.x_star_index)
 
     print "Final kernel: ", gp.kernel_
 
-    def gen_filename(fig_type, extension="png"): 
-        return filename_for(x_selector.name, update_theta, ground_truth.name, covariate_space.name, 
-            N_init, N_final, fig_type, extension=extension)
-
+    # Save all plots
     kernel_str = kernel_to_str(kernel)
 
-    posterior_plot.save(gen_filename("posterior_" + kernel_str))
-    density_plot.save(gen_filename("training_density_" + kernel_str))
-    if objective_plot is not None:
-        objective_plot.save(gen_filename("objective_" + kernel_str))
-    if plot_all:
-        eval_plot = EvalPlot(ground_truth.variance,
-            title="Learning GP with initial hyperparameters %s" % kernel)
-        eval_plot.append(evaluator, label="estimated")
-        eval_plot.save(gen_filename("eval_" + kernel_str))
+    gen_filename = lambda fig_type: filename_for(x_selector.name, update_theta, 
+        ground_truth.name, covariate_space.name, N_init, N_final, fig_type, 
+        extension="png")
+    gen_animated_filename = lambda fig_type: filename_for(x_selector.name, update_theta, 
+        ground_truth.name, covariate_space.name, N_init, N_final, fig_type, 
+        extension="gif")
+    
+    if animate:
+        posterior_animation.save(gen_animated_filename("posterior_" + kernel_str))
+        lml_animation.save(gen_animated_filename("lml_" + kernel_str))
+        density_animation.save(gen_animated_filename("training_density_" + kernel_str))
+        if objective_animation is not None:
+            objective_animation.save(gen_animated_filename("objective_" + kernel_str))
+    else:
+        posterior_plot.save(gen_filename("posterior_" + kernel_str))
+        density_plot.save(gen_filename("training_density_" + kernel_str))
+        if objective_plot is not None:
+            objective_plot.save(gen_filename("objective_" + kernel_str))
 
-    posterior_animation.set_quantities(X, y, posterior_plot.X_, posterior_plot.y_truth)
-    posterior_animation.save(gen_filename("posterior_" + kernel_str, extension="gif"))
-
-    lml_animation.save(gen_filename("lml_" + kernel_str, extension="gif"))
-
-    density_animation.set_quantities(X)
-    density_animation.save(gen_filename("training_density_" + kernel_str, extension="gif"))
-
-    if objective_animation is not None:
-        objective_animation.save(gen_filename("objective_" + kernel_str, extension="gif"))
+    eval_plot = EvalPlot(ground_truth.variance,
+        title="Learning GP with initial hyperparameters %s" % kernel)
+    eval_plot.append(evaluator, label="estimated")
+    eval_plot.save(gen_filename("eval_" + kernel_str))
 
     return evaluator
 
@@ -142,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument('--nmin', type=int, default=11)
     parser.add_argument('--nmax', type=int, default=20)
     parser.add_argument('--n-eval-pts', type=int, default=12)
+    parser.add_argument('--animate', action='store_true')
     parser.add_argument('--random-seed', type=int, default=123)
     args = parser.parse_args()
 
@@ -164,7 +165,7 @@ if __name__ == "__main__":
     default_kernel = RBF(length_scale=1.0, length_scale_bounds=config.length_scale_bounds) \
         + WhiteKernel(noise_level=1.0, noise_level_bounds=config.noise_level_bounds)
 
-    def learn_gp_wrapper(kernel, update_theta, plot_all=False):
+    def learn_gp_wrapper(kernel, update_theta):
         return learn_gp(
             x_selector = x_selector,
             kernel = kernel,
@@ -177,7 +178,7 @@ if __name__ == "__main__":
             N_init = args.nmin,
             N_final = args.nmax,
             N_eval_pts = args.n_eval_pts,
-            plot_all = plot_all
+            animate = args.animate
         )
 
     def compare_theta_values(update_theta):
@@ -240,5 +241,5 @@ if __name__ == "__main__":
 
     else:
         # run sequential version
-        learn_gp_wrapper(default_kernel, update_theta=True, plot_all=True)
+        learn_gp_wrapper(default_kernel, update_theta=True)
         

@@ -31,18 +31,20 @@ class IncrementalAnimation(object):
 
 
 class PosteriorAnimation(IncrementalAnimation):
-    def __init__(self, point_size=20):
+    def __init__(self, covariate_space, truth_fn, point_size=20):
         super(PosteriorAnimation, self).__init__()
+        self.X_ = np.linspace(covariate_space.xmin, covariate_space.xmax, 100)
+        self.X__matrix = self.X_[:, np.newaxis]
+        self.y_truth = [ truth_fn(x) for x in self.X__matrix ]
         self.point_size = point_size
 
-    def append(self, n_points, y_mean, y_cov):
+    def append(self, n_points, gp, X_train, y_train):
+        y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
         self.iterates.append((n_points, y_mean, y_cov))
 
-    def set_quantities(self, X_train, y_train, X_, y_truth):
+        # keep around the latest values
         self.X_train = X_train
         self.y_train = y_train
-        self.X_ = X_
-        self.y_truth = y_truth
 
     # assumes save has been called, so self.fig and self.ax are defined
     def init_anim(self):
@@ -81,10 +83,9 @@ class DensityAnimation(IncrementalAnimation):
     def __init__(self):
         super(DensityAnimation, self).__init__()
 
-    def append(self, n_points):
+    def append(self, n_points, X_train):
         self.iterates.append(n_points)
-
-    def set_quantities(self, X_train):
+        # keep around the latest values
         self.X_train = X_train
 
     # assumes save has been called, so self.fig and self.ax are defined
@@ -104,7 +105,10 @@ class ObjectiveAnimation(IncrementalAnimation):
         super(ObjectiveAnimation, self).__init__()
         self.xlim = xlim
 
-    def append(self, n_points, x, y, argmax_index):
+    def append(self, n_points, selector):
+        x = selector.all_x_star[:,0]
+        y = selector.avg_var_delta
+        argmax_index = selector.x_star_index
         self.iterates.append((n_points, x, y, argmax_index))
 
     # assumes save has been called, so self.fig and self.ax are defined
@@ -247,7 +251,7 @@ class DensityPlot(IncrementalPlot):
     def __init__(self, n_plots):
         self.init_subplots(n_plots)
 
-    def append(self, X_train, plot_num):
+    def append(self, plot_num, X_train):
         ax = self.get_subplot(plot_num)
         sns.distplot(X_train[:, 0], rug=True, ax=ax)
         ax.set_title("Histogram of first %d training points" % X_train.shape[0])
@@ -257,7 +261,11 @@ class ObjectivePlot(IncrementalPlot):
     def __init__(self, n_plots):
         self.init_subplots(n_plots)
 
-    def append(self, plot_num, x, y, argmax_index, n_points):
+    def append(self, plot_num, selector, n_points):
+        x = selector.all_x_star[:,0]
+        y = selector.avg_var_delta
+        argmax_index = selector.x_star_index
+
         ax = self.get_subplot(plot_num)
 
         ax.scatter(x, y, c='k', s=10)
@@ -276,7 +284,9 @@ class PosteriorPlot(IncrementalPlot):
 
         self.init_subplots(n_plots)
 
-    def append(self, plot_num, y_mean, y_cov, X_train, y_train, lml):
+    def append(self, plot_num, gp, X_train, y_train):
+        y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
+
         ax = self.get_subplot(plot_num)
 
         # Plot GP posterior
@@ -293,7 +303,7 @@ class PosteriorPlot(IncrementalPlot):
         ax.scatter(X_train[-1:, 0], y_train[-1:], c='r', s=30, zorder=11, edgecolors=(0, 0, 0))
         
         ax.set_title("GP posterior with %d training points\nLog-Marginal-Likelihood: %s"
-                     % (X_train.shape[0], lml))
+                     % (X_train.shape[0], gp.log_marginal_likelihood(gp.kernel_.theta)))
 
 
 # Deprecated
