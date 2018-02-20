@@ -13,7 +13,7 @@ class UniformCovariateSpace():
         self.name = 'uniform'
 
     def sample(self, n, rng):
-        return rng.uniform(self.xmin, self.xmax, n)
+        return rng.uniform(self.xmin, self.xmax, n)[:, np.newaxis]
 
 
 class GaussianCovariateSpace():
@@ -25,7 +25,18 @@ class GaussianCovariateSpace():
         self.name = 'gaussian'
 
     def sample(self, n, rng):
-        return rng.normal(self.loc, self.scale, n)
+        return rng.normal(self.loc, self.scale, n)[:, np.newaxis]
+
+
+class MVGaussianCovariateSpace():
+    def __init__(self, mean, cov):
+        self.mean = mean
+        self.cov = cov
+        self.xmin, self.xmax = None, None
+        self.name = 'mvgaussian'
+
+    def sample(self, n, rng):
+        return rng.multivariate_normal(self.mean, self.cov, n)
 
 
 class GroundTruth():
@@ -45,7 +56,9 @@ class GroundTruth():
 
 covariate_spaces = {
     'uniform': UniformCovariateSpace(xmin = -1.0, xmax = 1.0),
-    'gaussian': GaussianCovariateSpace(loc = 0, scale = 1.0/3)
+    'gaussian': GaussianCovariateSpace(loc = 0, scale = 1.0/3),  
+    # note need scale = 1/sqrt(3) for same variance as above
+    'gaussian2d': MVGaussianCovariateSpace(mean = np.zeros(2), cov = np.eye(2))
 }
 
 ground_truths = {

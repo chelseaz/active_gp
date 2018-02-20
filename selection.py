@@ -9,7 +9,7 @@ class RandomSelector():
         self.covariate_space = covariate_space
         self.name = "random"
 
-    # returns a numpy array
+    # returns a 1xd numpy array
     def next_x(self, gp, rng):
         return self.covariate_space.sample(1, rng)
 
@@ -21,7 +21,7 @@ class VarianceMinimizingSelector():
         self.num_x_star = num_x_star
         self.name = "varmin"
 
-    # returns a numpy array
+    # returns a 1xd numpy array
     def next_x(self, gp, rng):
         # sample num_xi values of xi from covariate space (reused across all candidates x_*)
         # compute cholesky of K_n, then use cho_solve with every K(X_n, xi) vector
@@ -52,7 +52,7 @@ class VarianceMinimizingSelector():
         # assert np.allclose(K_n_inv, K_n_inv2)
 
         # sample xi, compute kernel products
-        all_xi = self.covariate_space.sample(self.num_xi, rng)[:, np.newaxis]
+        all_xi = self.covariate_space.sample(self.num_xi, rng)
         K_n_trans_xi = gp.kernel_(gp.X_train_, all_xi)  # n x num_xi
         K_n_inv_xi_prod = np.dot(K_n_inv, K_n_trans_xi)  # n x num_xi
 
@@ -61,7 +61,7 @@ class VarianceMinimizingSelector():
         # assert np.allclose(K_n_inv_xi_prod, K_n_inv_xi_prod2)
 
         # sample x_star, compute kernel products
-        all_x_star = self.covariate_space.sample(self.num_x_star, rng)[:, np.newaxis]
+        all_x_star = self.covariate_space.sample(self.num_x_star, rng)
         K_n_trans_x_star = gp.kernel_(gp.X_train_, all_x_star)  # n x num_x_star
         qform_xi_x_star = K_n_inv_xi_prod.T.dot(K_n_trans_x_star)  # num_xi x num_x_star
 

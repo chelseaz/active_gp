@@ -30,7 +30,7 @@ class Evaluator():
 
     def evaluate(self, point_num, gp, rng, n_sample=1000):
         if point_num in self.eval_indices:
-            X_new = self.covariate_space.sample(n_sample, rng)[:, np.newaxis]
+            X_new = self.covariate_space.sample(n_sample, rng)
 
             y_hat, y_std = gp.predict(X_new, return_std=True)
 

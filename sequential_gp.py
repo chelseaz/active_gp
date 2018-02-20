@@ -45,7 +45,7 @@ def learn_gp(x_selector, kernel, update_theta,
         # setting optimizer to None will prevent hyperparameter fitting
 
     # generate first N observations randomly
-    X = covariate_space.sample(N_init-1, selector_rng)[:, np.newaxis]
+    X = covariate_space.sample(N_init-1, selector_rng)
     y = np.array([ground_truth.observe_y_fn(x, obs_rng) for x in X])
 
     gp.fit(X, y)
