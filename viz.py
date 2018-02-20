@@ -80,8 +80,9 @@ class PosteriorAnimation(IncrementalAnimation):
 
 
 class DensityAnimation(IncrementalAnimation):
-    def __init__(self):
+    def __init__(self, xlim):
         super(DensityAnimation, self).__init__()
+        self.xlim = xlim
 
     def append(self, n_points, X_train):
         self.iterates.append(n_points)
@@ -97,6 +98,7 @@ class DensityAnimation(IncrementalAnimation):
         n_points = iterate
         self.ax.clear()
         sns.distplot(self.X_train[:n_points, 0], rug=True, ax=self.ax)
+        self.ax.set_xlim(self.xlim)
         self.ax.set_title("Histogram of first %d training points" % n_points)
 
 

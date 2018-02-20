@@ -56,7 +56,7 @@ def learn_gp(x_selector, kernel, update_theta,
     if animate:
         posterior_animation = PosteriorAnimation(covariate_space, ground_truth.mean_fn)
         lml_animation = LMLAnimation()
-        density_animation = DensityAnimation()
+        density_animation = DensityAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
         objective_animation = None
         if isinstance(x_selector, VarianceMinimizingSelector):
             objective_animation = ObjectiveAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
@@ -104,28 +104,30 @@ def learn_gp(x_selector, kernel, update_theta,
     kernel_str = kernel_to_str(kernel)
 
     gen_filename = lambda fig_type: filename_for(x_selector.name, update_theta, 
-        ground_truth.name, covariate_space.name, N_init, N_final, fig_type, 
+        ground_truth.name, covariate_space.name, N_init, N_final,
+        custom=fig_type + "_" + kernel_str,
         extension="png")
     gen_animated_filename = lambda fig_type: filename_for(x_selector.name, update_theta, 
-        ground_truth.name, covariate_space.name, N_init, N_final, fig_type, 
+        ground_truth.name, covariate_space.name, N_init, N_final,
+        custom=fig_type + "_" + kernel_str,
         extension="gif")
-    
+
     if animate:
-        posterior_animation.save(gen_animated_filename("posterior_" + kernel_str))
-        lml_animation.save(gen_animated_filename("lml_" + kernel_str))
-        density_animation.save(gen_animated_filename("training_density_" + kernel_str))
+        posterior_animation.save(gen_animated_filename("posterior"))
+        lml_animation.save(gen_animated_filename("lml"))
+        density_animation.save(gen_animated_filename("training_density"))
         if objective_animation is not None:
-            objective_animation.save(gen_animated_filename("objective_" + kernel_str))
+            objective_animation.save(gen_animated_filename("objective"))
     else:
-        posterior_plot.save(gen_filename("posterior_" + kernel_str))
-        density_plot.save(gen_filename("training_density_" + kernel_str))
+        posterior_plot.save(gen_filename("posterior"))
+        density_plot.save(gen_filename("training_density"))
         if objective_plot is not None:
-            objective_plot.save(gen_filename("objective_" + kernel_str))
+            objective_plot.save(gen_filename("objective"))
 
     eval_plot = EvalPlot(ground_truth.variance,
         title="Learning GP with initial hyperparameters %s" % kernel)
     eval_plot.append(evaluator, label="estimated")
-    eval_plot.save(gen_filename("eval_" + kernel_str))
+    eval_plot.save(gen_filename("eval"))
 
     return evaluator
 
