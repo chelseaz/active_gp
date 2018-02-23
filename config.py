@@ -40,7 +40,8 @@ class MVGaussianCovariateSpace():
     def __init__(self, mean, cov):
         self.mean = mean
         self.cov = cov
-        self.xmin, self.xmax = None, None
+        self.xmin = -3*np.diag(cov)
+        self.xmax = 3*np.diag(cov)
         self.name = 'mvgaussian'
 
     # returns a nxd numpy array

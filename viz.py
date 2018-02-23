@@ -4,6 +4,7 @@ import numpy as np
 import seaborn as sns
 
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
 from matplotlib.colors import LogNorm
 from operator import itemgetter
@@ -102,13 +103,34 @@ class DensityAnimation(IncrementalAnimation):
         self.ax.set_title("Histogram of first %d training points" % n_points)
 
 
+class Density2dAnimation(DensityAnimation):
+    def __init__(self, xlim, ylim):
+        super(Density2dAnimation, self).__init__(xlim)
+        self.ylim = ylim
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points = iterate
+        x = self.X_train[:n_points, 0]
+        y = self.X_train[:n_points, 1]
+
+        self.ax.clear()
+        self.ax.set_xlim(self.xlim)
+        self.ax.set_ylim(self.ylim)
+        self.ax.scatter(x, y, c='k', marker='+')
+        self.ax.set_title("Locations of first %d training points" % n_points)
+        
+        if n_points < 3: return
+        sns.kdeplot(x, y, ax=self.ax)
+
+
 class ObjectiveAnimation(IncrementalAnimation):
     def __init__(self, xlim):
         super(ObjectiveAnimation, self).__init__()
         self.xlim = xlim
 
     def append(self, n_points, selector):
-        x = selector.all_x_star[:,0]
+        x = selector.all_x_star
         y = selector.avg_var_delta
         argmax_index = selector.x_star_index
         self.iterates.append((n_points, x, y, argmax_index))
@@ -123,12 +145,40 @@ class ObjectiveAnimation(IncrementalAnimation):
     # assumes save has been called, so self.fig and self.ax are defined
     def update_anim(self, iterate):
         n_points, x, y, argmax_index = iterate
-        self.objective.set_data(x, y)
-        self.objective_max.set_data([x[argmax_index]], [y[argmax_index]])
+        self.objective.set_data(x[:,0], y)
+        self.objective_max.set_data([x[argmax_index,0]], [y[argmax_index]])
         # recompute and update y-axis limits
         self.ax.relim()
         self.ax.autoscale_view(scalex=False)
         self.ax.set_title("Selection of training point %d" % n_points)
+
+
+class Objective2dAnimation(ObjectiveAnimation):
+    def __init__(self, xlim, ylim):
+        super(Objective2dAnimation, self).__init__(xlim)
+        self.ylim = ylim
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        self.ax.set_xlim(self.xlim)
+        self.ax.set_ylim(self.ylim)
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        n_points, x, y, argmax_index = iterate
+        self.ax.collections = []
+        # the following does not respect zorder. scatter always ends up below trisurf.
+        self.ax.plot_trisurf(x[:,0], x[:,1], y, cmap=plt.cm.viridis)
+        self.ax.scatter([x[argmax_index,0]], [x[argmax_index,1]], [y[argmax_index]], c='r')
+        self.ax.set_title("Selection of training point %d" % n_points, y=1.05)
+
+    # override default save method to use 3d projection
+    def save(self, filename, figsize=(8,6)):
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111, projection='3d')
+        anim = FuncAnimation(self.fig, self.update_anim, frames=self.iterates, init_func=self.init_anim,
+            interval=1e3)
+        anim.save(filename, dpi=80, writer='imagemagick')
 
 
 class LMLAnimation(IncrementalAnimation):
