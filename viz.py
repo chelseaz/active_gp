@@ -31,13 +31,28 @@ class IncrementalAnimation(object):
         anim.save(filename, dpi=80, writer='imagemagick')
 
 
+class IncrementalAnimation3dPlotting(IncrementalAnimation):
+    # override default save method to use 3d projection
+    def save(self, filename, figsize=(8,6)):
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111, projection='3d')
+        anim = FuncAnimation(self.fig, self.update_anim, frames=self.iterates, init_func=self.init_anim,
+            interval=1e3)
+        anim.save(filename, dpi=80, writer='imagemagick')
+
+
 class PosteriorAnimation(IncrementalAnimation):
-    def __init__(self, covariate_space, truth_fn, point_size=20):
+    def __init__(self, xlim, truth_fn, point_size=20):
         super(PosteriorAnimation, self).__init__()
-        self.X_ = np.linspace(covariate_space.xmin, covariate_space.xmax, 100)
+        self.xlim = xlim
+        self.set_quantities(truth_fn)
+        self.point_size = point_size
+
+    def set_quantities(self, truth_fn):
+        xmin, xmax = self.xlim
+        self.X_ = np.linspace(xmin, xmax, 100)
         self.X__matrix = self.X_[:, np.newaxis]
         self.y_truth = [ truth_fn(x) for x in self.X__matrix ]
-        self.point_size = point_size
 
     def append(self, n_points, gp, X_train, y_train):
         y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
@@ -49,6 +64,7 @@ class PosteriorAnimation(IncrementalAnimation):
 
     # assumes save has been called, so self.fig and self.ax are defined
     def init_anim(self):
+        self.ax.set_xlim(self.xlim)
         self.ax.plot(self.X_, self.y_truth, 'r', lw=2, zorder=9)
         self.posterior_mean, = self.ax.plot([], [], 'k', lw=2, zorder=9)
         self.posterior_interval = self.ax.fill_between([], [], [])
@@ -78,6 +94,29 @@ class PosteriorAnimation(IncrementalAnimation):
 
         self.ax.set_title("GP posterior, %d points" % n_points)
         # return self.posterior_mean, self.posterior_interval, self.points
+
+
+class Posterior2dAnimation(PosteriorAnimation, IncrementalAnimation3dPlotting):
+    def __init__(self, xlim, ylim, truth_fn):
+        self.ylim = ylim
+        super(Posterior2dAnimation, self).__init__(xlim, truth_fn)
+
+    def set_quantities(self, truth_fn):
+        xmin, xmax = self.xlim
+        ymin, ymax = self.ylim
+        X, Y = np.meshgrid(np.linspace(xmin, xmax, 10), np.linspace(ymin, ymax, 10))
+        self.X__matrix = np.vstack([X.ravel(), Y.ravel()]).T
+        self.y_truth = [ truth_fn(x) for x in self.X__matrix ]
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def init_anim(self):
+        pass
+        # raise NotImplementedError
+
+    # assumes save has been called, so self.fig and self.ax are defined
+    def update_anim(self, iterate):
+        pass
+        # raise NotImplementedError
 
 
 class DensityAnimation(IncrementalAnimation):
@@ -153,7 +192,7 @@ class ObjectiveAnimation(IncrementalAnimation):
         self.ax.set_title("Selection of training point %d" % n_points)
 
 
-class Objective2dAnimation(ObjectiveAnimation):
+class Objective2dAnimation(ObjectiveAnimation, IncrementalAnimation3dPlotting):
     def __init__(self, xlim, ylim):
         super(Objective2dAnimation, self).__init__(xlim)
         self.ylim = ylim
@@ -171,14 +210,6 @@ class Objective2dAnimation(ObjectiveAnimation):
         self.ax.plot_trisurf(x[:,0], x[:,1], y, cmap=plt.cm.viridis)
         self.ax.scatter([x[argmax_index,0]], [x[argmax_index,1]], [y[argmax_index]], c='r')
         self.ax.set_title("Selection of training point %d" % n_points, y=1.05)
-
-    # override default save method to use 3d projection
-    def save(self, filename, figsize=(8,6)):
-        self.fig = plt.figure()
-        self.ax = self.fig.add_subplot(111, projection='3d')
-        anim = FuncAnimation(self.fig, self.update_anim, frames=self.iterates, init_func=self.init_anim,
-            interval=1e3)
-        anim.save(filename, dpi=80, writer='imagemagick')
 
 
 class LMLAnimation(IncrementalAnimation):

@@ -60,15 +60,20 @@ def learn_gp(x_selector, kernel, update_theta,
         if covariate_space.dimension() == 2:
             x1min, x2min = covariate_space.xmin
             x1max, x2max = covariate_space.xmax
-            density_animation = Density2dAnimation(xlim=(x1min, x1max), ylim=(x2min, x2max))
+            xlim = (x1min, x1max)
+            ylim = (x2min, x2max)
+            posterior_animation = Posterior2dAnimation(xlim=xlim, ylim=ylim, 
+                truth_fn=ground_truth.mean_fn)
+            density_animation = Density2dAnimation(xlim=xlim, ylim=ylim)
             if isinstance(x_selector, VarianceMinimizingSelector):
-                objective_animation = Objective2dAnimation(xlim=(x1min, x1max), ylim=(x2min, x2max))
+                objective_animation = Objective2dAnimation(xlim=xlim, ylim=ylim)
     elif animate:
-        posterior_animation = PosteriorAnimation(covariate_space, ground_truth.mean_fn)
+        xlim = (covariate_space.xmin, covariate_space.xmax)
+        posterior_animation = PosteriorAnimation(xlim, ground_truth.mean_fn)
         lml_animation = LMLAnimation()
-        density_animation = DensityAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
+        density_animation = DensityAnimation(xlim=xlim)
         if isinstance(x_selector, VarianceMinimizingSelector):
-            objective_animation = ObjectiveAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
+            objective_animation = ObjectiveAnimation(xlim=xlim)
     else:
         posterior_plot = PosteriorPlot(covariate_space, ground_truth.mean_fn, N_eval_pts)
         density_plot = DensityPlot(N_eval_pts)
@@ -93,13 +98,9 @@ def learn_gp(x_selector, kernel, update_theta,
             plot_num = which_eval_index
 
             # Update all plots
-            if covariate_space.dimension() > 1:
+            if covariate_space.dimension() > 2:
                 lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
-                if covariate_space.dimension() == 2:
-                    density_animation.append(i, X)
-                    if objective_animation is not None:
-                        objective_animation.append(i, x_selector)
-            elif animate:
+            elif animate or covariate_space.dimension() == 2:
                 posterior_animation.append(i, gp, X, y)
                 lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
                 density_animation.append(i, X)
@@ -126,13 +127,9 @@ def learn_gp(x_selector, kernel, update_theta,
         custom=fig_type + "_" + kernel_str,
         extension="gif")
 
-    if covariate_space.dimension() > 1:
+    if covariate_space.dimension() > 2:
         lml_animation.save(gen_animated_filename("lml"))
-        if covariate_space.dimension() == 2:
-            density_animation.save(gen_animated_filename("training_density"))
-            if objective_animation is not None:
-                objective_animation.save(gen_animated_filename("objective"))
-    elif animate:
+    elif animate or covariate_space.dimension() == 2:
         posterior_animation.save(gen_animated_filename("posterior"))
         lml_animation.save(gen_animated_filename("lml"))
         density_animation.save(gen_animated_filename("training_density"))
