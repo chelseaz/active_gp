@@ -53,7 +53,11 @@ def learn_gp(x_selector, kernel, update_theta,
     evaluator = Evaluator(covariate_space, ground_truth, N_init, N_final, N_eval_pts)
 
     # Initialize all plots
-    if animate:
+    if covariate_space.dimension() > 1:
+        # only LML animation supported for now
+        lml_animation = LMLAnimation()
+
+    elif animate:
         posterior_animation = PosteriorAnimation(covariate_space, ground_truth.mean_fn)
         lml_animation = LMLAnimation()
         density_animation = DensityAnimation(xlim=(covariate_space.xmin, covariate_space.xmax))
@@ -85,7 +89,10 @@ def learn_gp(x_selector, kernel, update_theta,
             plot_num = which_eval_index
 
             # Update all plots
-            if animate:
+            if covariate_space.dimension() > 1:
+                lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
+            
+            elif animate:
                 posterior_animation.append(i, gp, X, y)
                 lml_animation.append(i, gp, np.exp(gp.kernel_.theta))
                 density_animation.append(i, X)
@@ -112,7 +119,10 @@ def learn_gp(x_selector, kernel, update_theta,
         custom=fig_type + "_" + kernel_str,
         extension="gif")
 
-    if animate:
+    if covariate_space.dimension() > 1:
+        lml_animation.save(gen_animated_filename("lml"))
+
+    elif animate:
         posterior_animation.save(gen_animated_filename("posterior"))
         lml_animation.save(gen_animated_filename("lml"))
         density_animation.save(gen_animated_filename("training_density"))

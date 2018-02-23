@@ -9,9 +9,9 @@ class RandomSelector():
         self.covariate_space = covariate_space
         self.name = "random"
 
-    # returns a 1xd numpy array
+    # returns a length d numpy array
     def next_x(self, gp, rng):
-        return self.covariate_space.sample(1, rng)
+        return self.covariate_space.sample(1, rng)[0]
 
 
 class VarianceMinimizingSelector():
@@ -21,7 +21,7 @@ class VarianceMinimizingSelector():
         self.num_x_star = num_x_star
         self.name = "varmin"
 
-    # returns a 1xd numpy array
+    # returns a length d numpy array
     def next_x(self, gp, rng):
         # sample num_xi values of xi from covariate space (reused across all candidates x_*)
         # compute cholesky of K_n, then use cho_solve with every K(X_n, xi) vector

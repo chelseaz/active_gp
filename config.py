@@ -12,8 +12,12 @@ class UniformCovariateSpace():
         self.xmax = xmax
         self.name = 'uniform'
 
+    # returns a nx1 numpy array
     def sample(self, n, rng):
         return rng.uniform(self.xmin, self.xmax, n)[:, np.newaxis]
+
+    def dimension(self):
+        return 1
 
 
 class GaussianCovariateSpace():
@@ -24,8 +28,12 @@ class GaussianCovariateSpace():
         self.xmax = 3*scale
         self.name = 'gaussian'
 
+    # returns a nx1 numpy array
     def sample(self, n, rng):
         return rng.normal(self.loc, self.scale, n)[:, np.newaxis]
+
+    def dimension(self):
+        return 1
 
 
 class MVGaussianCovariateSpace():
@@ -35,8 +43,12 @@ class MVGaussianCovariateSpace():
         self.xmin, self.xmax = None, None
         self.name = 'mvgaussian'
 
+    # returns a nxd numpy array
     def sample(self, n, rng):
         return rng.multivariate_normal(self.mean, self.cov, n)
+
+    def dimension(self):
+        return self.mean.size
 
 
 class GroundTruth():
@@ -71,5 +83,10 @@ ground_truths = {
         variance = 0.25,
         mean_fn = lambda x: np.sin(1 * 2 * np.pi * x[0]),
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
-        name = 'sin_freq_1_noise_0.25')
+        name = 'sin_freq_1_noise_0.25'),
+    'paraboloid': GroundTruth(
+        variance = 0.01,
+        mean_fn = lambda x: x[0]**2 + x[1] ** 2,
+        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.01)),
+        name = 'paraboloid_1_noise_0.01')
 }
