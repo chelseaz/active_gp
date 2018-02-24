@@ -55,8 +55,8 @@ class PosteriorAnimation(IncrementalAnimation):
         self.y_truth = [ truth_fn(x) for x in self.X__matrix ]
 
     def append(self, n_points, gp, X_train, y_train):
-        y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
-        self.iterates.append((n_points, y_mean, y_cov))
+        y_mean, y_std = gp.predict(self.X__matrix, return_std=True)
+        self.iterates.append((n_points, y_mean, y_std))
 
         # keep around the latest values
         self.X_train = X_train
@@ -74,14 +74,14 @@ class PosteriorAnimation(IncrementalAnimation):
 
     # assumes save has been called, so self.fig and self.ax are defined
     def update_anim(self, iterate):
-        n_points, y_mean, y_cov = iterate
+        n_points, y_mean, y_std = iterate
         total_n_points = self.y_train.size
         self.posterior_mean.set_data(self.X_, y_mean)
 
         # can't easily mutate existing posterior interval, so remove it and plot a new one
         self.posterior_interval.remove()
-        self.posterior_interval = self.ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
-            y_mean + np.sqrt(np.diag(y_cov)), alpha=0.5, color='k')
+        self.posterior_interval = self.ax.fill_between(self.X_, y_mean - y_std,
+            y_mean + y_std, alpha=0.5, color='k')
 
         point_sizes = [self.point_size] * (n_points-1) \
             + [self.point_size*2] \
@@ -120,7 +120,7 @@ class Posterior2dAnimation(PosteriorAnimation, IncrementalAnimation3dPlotting):
 
     # assumes save has been called, so self.fig and self.ax are defined
     def update_anim(self, iterate):
-        n_points, y_mean, y_cov = iterate
+        n_points, y_mean, y_std = iterate
         self.ax.collections = []
 
         truth_surface = self.ax.plot_surface(self.X_, self.Y_, self.y_truth_2d, cmap=plt.cm.Reds)
@@ -128,6 +128,15 @@ class Posterior2dAnimation(PosteriorAnimation, IncrementalAnimation3dPlotting):
 
         y_mean_2d = np.reshape(y_mean, (self.truth_density, self.truth_density))
         posterior_mean = self.ax.plot_surface(self.X_, self.Y_, y_mean_2d, cmap=plt.cm.Greys)
+
+        y_std_2d = np.reshape(y_std, (self.truth_density, self.truth_density))
+        posterior_lower = self.ax.plot_surface(self.X_, self.Y_, y_mean_2d-y_std_2d, cmap=plt.cm.Greys)
+        posterior_lower.set_alpha(0.25)
+        posterior_upper = self.ax.plot_surface(self.X_, self.Y_, y_mean_2d+y_std_2d, cmap=plt.cm.Greys)
+        posterior_upper.set_alpha(0.25)
+        # points won't show up as surface plots don't respect zorder
+        # self.ax.scatter(self.X_train[:n_points,0], self.X_train[:n_points,1], self.y_train[:n_points],
+        #     c='k', s=5)
 
         self.ax.set_title("GP posterior, %d points" % n_points, y=1.05)
 
@@ -383,14 +392,13 @@ class PosteriorPlot(IncrementalPlot):
         self.init_subplots(n_plots)
 
     def append(self, plot_num, gp, X_train, y_train):
-        y_mean, y_cov = gp.predict(self.X__matrix, return_cov=True)
+        y_mean, y_std = gp.predict(self.X__matrix, return_std=True)
 
         ax = self.get_subplot(plot_num)
 
         # Plot GP posterior
         ax.plot(self.X_, y_mean, 'k', lw=2, zorder=9)
-        ax.fill_between(self.X_, y_mean - np.sqrt(np.diag(y_cov)),
-                        y_mean + np.sqrt(np.diag(y_cov)),
+        ax.fill_between(self.X_, y_mean - y_std, y_mean + y_std,
                         alpha=0.5, color='k')
 
         # Plot ground truth
@@ -412,10 +420,9 @@ def plot_posterior(gp, X_train, y_train, covariate_space, truth_fn, filename):
     X__matrix = X_[:, np.newaxis]
 
     # Plot GP posterior
-    y_mean, y_cov = gp.predict(X__matrix, return_cov=True)
+    y_mean, y_std = gp.predict(X__matrix, return_std=True)
     plt.plot(X_, y_mean, 'k', lw=2, zorder=9)
-    plt.fill_between(X_, y_mean - np.sqrt(np.diag(y_cov)),
-                     y_mean + np.sqrt(np.diag(y_cov)),
+    plt.fill_between(X_, y_mean - y_std, y_mean + y_std,
                      alpha=0.5, color='k')
 
     # Plot ground truth
