@@ -97,26 +97,39 @@ class PosteriorAnimation(IncrementalAnimation):
 
 
 class Posterior2dAnimation(PosteriorAnimation, IncrementalAnimation3dPlotting):
-    def __init__(self, xlim, ylim, truth_fn):
+    def __init__(self, xlim, ylim, truth_fn, truth_density=10):
         self.ylim = ylim
+        self.truth_density = truth_density
         super(Posterior2dAnimation, self).__init__(xlim, truth_fn)
 
     def set_quantities(self, truth_fn):
         xmin, xmax = self.xlim
         ymin, ymax = self.ylim
-        X, Y = np.meshgrid(np.linspace(xmin, xmax, 10), np.linspace(ymin, ymax, 10))
-        self.X__matrix = np.vstack([X.ravel(), Y.ravel()]).T
-        self.y_truth = [ truth_fn(x) for x in self.X__matrix ]
+        self.X_, self.Y_ = np.meshgrid(
+            np.linspace(xmin, xmax, self.truth_density), 
+            np.linspace(ymin, ymax, self.truth_density)
+        )
+        self.X__matrix = np.vstack([self.X_.ravel(), self.Y_.ravel()]).T
+        y_truth = [ truth_fn(x) for x in self.X__matrix ]
+        self.y_truth_2d = np.reshape(y_truth, (self.truth_density, self.truth_density))
 
     # assumes save has been called, so self.fig and self.ax are defined
     def init_anim(self):
-        pass
-        # raise NotImplementedError
+        self.ax.set_xlim(self.xlim)
+        self.ax.set_ylim(self.ylim)
 
     # assumes save has been called, so self.fig and self.ax are defined
     def update_anim(self, iterate):
-        pass
-        # raise NotImplementedError
+        n_points, y_mean, y_cov = iterate
+        self.ax.collections = []
+
+        truth_surface = self.ax.plot_surface(self.X_, self.Y_, self.y_truth_2d, cmap=plt.cm.Reds)
+        truth_surface.set_alpha(0.5)
+
+        y_mean_2d = np.reshape(y_mean, (self.truth_density, self.truth_density))
+        posterior_mean = self.ax.plot_surface(self.X_, self.Y_, y_mean_2d, cmap=plt.cm.Greys)
+
+        self.ax.set_title("GP posterior, %d points" % n_points, y=1.05)
 
 
 class DensityAnimation(IncrementalAnimation):
@@ -207,7 +220,9 @@ class Objective2dAnimation(ObjectiveAnimation, IncrementalAnimation3dPlotting):
         n_points, x, y, argmax_index = iterate
         self.ax.collections = []
         # the following does not respect zorder. scatter always ends up below trisurf.
-        self.ax.plot_trisurf(x[:,0], x[:,1], y, cmap=plt.cm.viridis)
+        # hence we give the surface some transparency
+        surface = self.ax.plot_trisurf(x[:,0], x[:,1], y, cmap=plt.cm.viridis)
+        surface.set_alpha(0.8)
         self.ax.scatter([x[argmax_index,0]], [x[argmax_index,1]], [y[argmax_index]], c='r')
         self.ax.set_title("Selection of training point %d" % n_points, y=1.05)
 
