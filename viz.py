@@ -29,6 +29,7 @@ class IncrementalAnimation(object):
         anim = FuncAnimation(self.fig, self.update_anim, frames=self.iterates, init_func=self.init_anim,
             interval=1e3)
         anim.save(filename, dpi=80, writer='imagemagick')
+        plt.close(self.fig)
 
 
 class IncrementalAnimation3dPlotting(IncrementalAnimation):
@@ -39,6 +40,7 @@ class IncrementalAnimation3dPlotting(IncrementalAnimation):
         anim = FuncAnimation(self.fig, self.update_anim, frames=self.iterates, init_func=self.init_anim,
             interval=1e3)
         anim.save(filename, dpi=80, writer='imagemagick')
+        plt.close(self.fig)
 
 
 class PosteriorAnimation(IncrementalAnimation):
