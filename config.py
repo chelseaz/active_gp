@@ -87,7 +87,7 @@ ground_truths = {
         name = 'sin_freq_1_noise_0.25',
         approx_length_scale = 0.334),
     'paraboloid': GroundTruth(
-        variance = 0.01,
+        variance = 0.25,
         mean_fn = lambda x: x[0]**2 + x[1] ** 2,
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
         name = 'paraboloid_1_noise_0.25',
