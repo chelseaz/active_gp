@@ -88,6 +88,6 @@ ground_truths = {
     'paraboloid': GroundTruth(
         variance = 0.01,
         mean_fn = lambda x: x[0]**2 + x[1] ** 2,
-        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.01)),
-        name = 'paraboloid_1_noise_0.01')
+        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
+        name = 'paraboloid_1_noise_0.25')
 }
