@@ -55,7 +55,7 @@ class MVGaussianCovariateSpace():
 class GroundTruth():
     # mean_fn takes in a numpy array and returns a scalar output
     # noise_fn takes in a random state and returns a scalar output
-    def __init__(self, variance, mean_fn, noise_fn, name):
+    def __init__(self, variance, mean_fn, noise_fn, name, approx_length_scale):
         self.variance = variance
         self.mean_fn = mean_fn
         self.noise_fn = noise_fn
@@ -63,8 +63,7 @@ class GroundTruth():
         self.observe_y_fn = lambda x, rng: mean_fn(x) + noise_fn(rng)
 
         # TODO: calculate this programmatically
-        # hardcoded for the low_freq_sinusoid based on sequential version with 1000 pts
-        self.approx_length_scale = 0.334
+        self.approx_length_scale = approx_length_scale
 
 
 covariate_spaces = {
@@ -79,15 +78,18 @@ ground_truths = {
         variance = 0.25,
         mean_fn = lambda x: np.sin(3 * 2 * np.pi * x[0]),
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
-        name = 'sin_freq_3_noise_0.25'),
+        name = 'sin_freq_3_noise_0.25',
+        approx_length_scale = None),
     'low_freq_sinusoid': GroundTruth(
         variance = 0.25,
         mean_fn = lambda x: np.sin(1 * 2 * np.pi * x[0]),
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
-        name = 'sin_freq_1_noise_0.25'),
+        name = 'sin_freq_1_noise_0.25',
+        approx_length_scale = 0.334),
     'paraboloid': GroundTruth(
         variance = 0.01,
         mean_fn = lambda x: x[0]**2 + x[1] ** 2,
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
-        name = 'paraboloid_1_noise_0.25')
+        name = 'paraboloid_1_noise_0.25',
+        approx_length_scale = 1.0)
 }
