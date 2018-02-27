@@ -90,11 +90,11 @@ def learn_gp(x_selector, kernel, update_theta,
 
         assert X.shape[0] == i, y.size == i
 
-        # update hyperparameters
-        gp.fit(X, y)
-
         which_eval_index = evaluator.evaluate(i, gp, eval_rng)
         if which_eval_index is not None:
+            # update GP, including hyperparameters
+            gp.fit(X, y)
+
             plot_num = which_eval_index
 
             # Update all plots

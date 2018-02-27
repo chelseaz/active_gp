@@ -70,7 +70,9 @@ covariate_spaces = {
     'uniform': UniformCovariateSpace(xmin = -1.0, xmax = 1.0),
     'gaussian': GaussianCovariateSpace(loc = 0, scale = 1.0/3),  
     # note need scale = 1/sqrt(3) for same variance as above
-    'gaussian2d': MVGaussianCovariateSpace(mean = np.zeros(2), cov = np.eye(2))
+    'gaussian2d': MVGaussianCovariateSpace(mean = np.zeros(2), cov = np.eye(2)),
+    'gaussian5d': MVGaussianCovariateSpace(mean = np.zeros(5), cov = np.eye(5)),
+    'gaussian10d': MVGaussianCovariateSpace(mean = np.zeros(10), cov = np.eye(10))
 }
 
 ground_truths = {
@@ -88,8 +90,20 @@ ground_truths = {
         approx_length_scale = 0.334),
     'paraboloid': GroundTruth(
         variance = 0.25,
-        mean_fn = lambda x: x[0]**2 + x[1] ** 2,
+        mean_fn = lambda x: x[0]**2 + x[1]**2,
         noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
         name = 'paraboloid_1_noise_0.25',
-        approx_length_scale = 1.0)
+        approx_length_scale = 1.0),
+    '5d_paraboloid': GroundTruth(
+        variance = 0.25,
+        mean_fn = lambda x: 0.2*np.power(x, 2).sum(),
+        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
+        name = '5d_paraboloid_0.2_noise_0.25',
+        approx_length_scale = 3.17),
+    '10d_paraboloid': GroundTruth(
+        variance = 0.25,
+        mean_fn = lambda x: 0.1*np.power(x, 2).sum(),
+        noise_fn = lambda rng: rng.normal(0, np.sqrt(0.25)),
+        name = '10d_paraboloid_0.1_noise_0.25',
+        approx_length_scale = 4.15)
 }
